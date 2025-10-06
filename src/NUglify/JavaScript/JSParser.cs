@@ -914,7 +914,7 @@ namespace NUglify.JavaScript
                 }
                 else
                 {
-                    // finish off the expression using the unary as teh starting point
+                    // finish off the expression using the unary as the starting point
                     statement = ParseExpression(statement, false, bAssign, JSToken.None);
 
                     // if we just started a new module and this statement happens to be an expression statement...
@@ -2776,9 +2776,9 @@ namespace NUglify.JavaScript
                                 {
                                     // the external name is also the local binding
                                     localIdentifier = new BindingIdentifier(nameContext)
-                                    {
-                                        Name = externalName
-                                    };
+                                        {
+                                            Name = externalName
+                                        };
                                     externalName = null;
                                     nameContext = null;
                                 }
@@ -3316,18 +3316,25 @@ namespace NUglify.JavaScript
 
         AstNode ParseClassElement_FieldNoInitialisation(SourceContext staticContext, ArrayLiteral computedName)
         {
-	        var context = m_currentToken.Clone();
+            var context = m_currentToken.Clone();
 
-	        // its a field without initialization
-	        var field = new ClassField(context);
-	        if (computedName == null)
-		        field.Name = m_scanner.Identifier;
-	        else
-		        field.ComputedName = computedName;
+            // its a field without initialization
+            var field = new ClassField(context);
+            if (computedName == null)
+                field.Name = m_scanner.Identifier;
+            else
+                field.ComputedName = computedName;
             field.StaticContext = staticContext;
-	        field.IsStatic = staticContext != null;
+            field.IsStatic = staticContext != null;
 
-	        GetNextToken();
+            if (Settings.AutoRenameGlobals)
+            {
+                field.Binding = ParseBinding() as BindingIdentifier;
+            }
+            else
+            {
+                GetNextToken();
+            }
 
 	        return field;
         }
@@ -5359,11 +5366,11 @@ namespace NUglify.JavaScript
                     name = m_currentToken.Code;
                     id = new ConstantWrapper(name, PrimitiveType.String, m_currentToken.Clone());
                 }
-                else if(expression is LookupExpression {Name: "String"} && m_currentToken.Token == JSToken.TemplateLiteral && m_currentToken.Code.StartsWith("raw`"))
+                else if (expression is LookupExpression {Name: "String"} && m_currentToken.Token == JSToken.TemplateLiteral && m_currentToken.Code.StartsWith("raw`"))
                 {
 					// We have a String.raw`foo` situation
                     // This ends up making the raw`foo` a MemberExpression instead of a method call. This is probably wrong but
-                    // template literal functions have a wierd syntax. Future bugs may turn out to mean this should be changed to
+                    // template literal functions have a weird syntax. Future bugs may turn out to mean this should be changed to
                     // be a CallExpression which may need special treatment elsewhere (e.g. Visitors)
 					name = m_currentToken.Code;
                 }

@@ -306,6 +306,8 @@ Valid OPTS are zero or more of:
   
 Valid JSOPTS are zero or more of:
   -analyze[:AOPTS [APATH]] &gt; provide extra code analysis output.
+  -autoglobals[:BOOL] &gt; turn on or off auto renaming all globals.
+        Default is false.
   -cc[:BOOL] &gt; turn on or off support for conditional-compilation comments.
         Default is true.
   -comments:(none|important) &gt; whether to remove all comments (none), 

@@ -97,5 +97,11 @@ namespace NUglify.Tests.JavaScript
             // ignore the unused-label warning
             TestHelper.Instance.RunErrorTest("-evals:immediate");
         }
+
+        [Test]
+        public void AutoRenameGlobals()
+        {
+            TestHelper.Instance.RunErrorTest("-rename:all -autoglobals");
+        }
     }
 }

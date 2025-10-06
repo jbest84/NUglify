@@ -1,0 +1,1 @@
+﻿function i(){return!0}class n{constructor(n){this.fld=n;this.date=new Date}}class t extends n{constructor(n){super(n)}}let r=new n,u=new t;i()

@@ -898,7 +898,7 @@ namespace NUglify.JavaScript.Visitors
 
         public void Visit(ClassField node)
         {
-            if(node == null)
+            if (node == null)
 				return;
 
             var symbol = StartSymbol(node);

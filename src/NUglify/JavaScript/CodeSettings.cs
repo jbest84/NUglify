@@ -20,7 +20,7 @@ using NUglify.Helpers;
 
 namespace NUglify.JavaScript
 {
-	/// <summary>
+    /// <summary>
     /// Object used to store code settings for JavaScript parsing, minification, and output
     /// </summary>
     public class CodeSettings : CommonSettings
@@ -68,11 +68,11 @@ namespace NUglify.JavaScript
         /// <returns></returns>
         public static CodeSettings Pretty()
         {
-	        var settings = new CodeSettings();
-	        settings.MinifyCode = false;
-	        settings.OutputMode = OutputMode.MultipleLines;
-	        settings.TermSemicolons = true;
-	        return settings;
+            var settings = new CodeSettings();
+            settings.MinifyCode = false;
+            settings.OutputMode = OutputMode.MultipleLines;
+            settings.TermSemicolons = true;
+            return settings;
         }
 
         /// <summary>
@@ -91,6 +91,7 @@ namespace NUglify.JavaScript
                 AllowEmbeddedAspNetBlocks = this.AllowEmbeddedAspNetBlocks,
                 AlwaysEscapeNonAscii = this.AlwaysEscapeNonAscii,
                 AmdSupport = this.AmdSupport,
+                AutoRenameGlobals = this.AutoRenameGlobals,
                 CollapseToLiteral = this.CollapseToLiteral,
                 ConstStatementsMozilla = this.ConstStatementsMozilla,
                 DebugLookupList = this.DebugLookupList,
@@ -585,6 +586,11 @@ namespace NUglify.JavaScript
                 }
             }
         }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to auto rename all globals. Default: false.
+        /// </summary>
+        public bool AutoRenameGlobals { get; set; }
 
         /// <summary>
         /// collapse new Array() to [] and new Object() to {} [true]

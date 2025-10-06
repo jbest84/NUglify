@@ -899,6 +899,11 @@ namespace NUglify.JavaScript.Syntax
 
         internal virtual void AutoRenameFields()
         {
+            InternalAutoRenameFields();
+        }
+
+        internal void InternalAutoRenameFields()
+        {
             // if we're not known at compile time, then we can't crunch
             // the local variables in this scope, because we can't know if
             // something will reference any of it at runtime.

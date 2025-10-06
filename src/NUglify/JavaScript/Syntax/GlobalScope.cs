@@ -163,16 +163,20 @@ namespace NUglify.JavaScript.Syntax
 
         internal override void AutoRenameFields()
         {
-            // don't crunch global values -- they might be referenced in other scripts
-            // within the page but outside this module.
-
-            // traverse through our children scopes
-            foreach (ActivationObject scope in ChildScopes)
+            if (Settings.AutoRenameGlobals)
             {
-                // don't recurse existing child scopes
-                if (!scope.Existing)
+                InternalAutoRenameFields();
+            }
+            else
+            {
+                // traverse through our children scopes
+                foreach (ActivationObject scope in ChildScopes)
                 {
-                    scope.AutoRenameFields();
+                    // don't recurse existing child scopes
+                    if (!scope.Existing)
+                    {
+                        scope.AutoRenameFields();
+                    }
                 }
             }
         }
@@ -243,7 +247,9 @@ namespace NUglify.JavaScript.Syntax
 
         public override JSVariableField CreateField(string name, object value, FieldAttributes attributes)
         {
-            return new JSVariableField(FieldType.Global, name, attributes, value);
+            JSVariableField variableField = new JSVariableField(FieldType.Global, name, attributes, value);
+            variableField.CanCrunch = Settings.AutoRenameGlobals;
+            return variableField;
         }
 
         public override JSVariableField CreateField(JSVariableField outerField)
