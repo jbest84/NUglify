@@ -5366,7 +5366,7 @@ namespace NUglify.JavaScript
                     name = m_currentToken.Code;
                     id = new ConstantWrapper(name, PrimitiveType.String, m_currentToken.Clone());
                 }
-                else if (expression is LookupExpression {Name: "String"} && m_currentToken.Token == JSToken.TemplateLiteral && m_currentToken.Code.StartsWith("raw`"))
+                else if(expression is LookupExpression {Name: "String"} && m_currentToken.Token == JSToken.TemplateLiteral && m_currentToken.Code.StartsWith("raw`"))
                 {
 					// We have a String.raw`foo` situation
                     // This ends up making the raw`foo` a MemberExpression instead of a method call. This is probably wrong but
