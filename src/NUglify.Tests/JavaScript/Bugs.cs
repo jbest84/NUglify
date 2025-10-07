@@ -218,7 +218,7 @@ namespace NUglify.Tests.JavaScript
 	        Assert.That(actual, Is.EqualTo(@"{
 ""version"":3,
 ""file"":""C:\\some\\long\\path\\to\\js"",
-""mappings"":""AAAAA,MAAM,CAAC,QAAQ,CAAE,CAAA,CAAE,CAAE,QAAQ,CAAA,CAAG,CAAE,OAAQ,QAAQ,CAAA,CAAU,EAC5D,CAAC,CACS,wDAAwD,CAEvDC,QAAQ,CAAA,CAAuC,EAHzD,CAAD,CADgC,CAA1B"",
+""mappings"":""AAAAA,MAAM,CAAC,QAAQ,CAAE,CAAA,CAAE,CAAE,QAAQ,CAAA,CAAG,CAAE,OAAQ,QAAQ,CAAA,CAAU,EAC5D,CAAC,CACM,wDAAwD,CAEvDC,QAAQ,CAAA,CAAuC,EAHtD,CAAD,CADgC,CAA1B"",
 ""sources"":[""C:\\some\\path\\to\\output\\js""],
 ""names"":[""define"",""./node_modules/moment/locale sync recursive ^\\.\\/.*$""]
 }
