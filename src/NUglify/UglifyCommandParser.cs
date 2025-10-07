@@ -1213,7 +1213,7 @@ namespace NUglify
                                                     // else use char provided
                                                     else
                                                     {
-                                                        JSSettings.Indent = CssSettings.Indent = lineParts[breakIndex];
+	                                                    JSSettings.Indent = CssSettings.Indent = lineParts[breakIndex];
                                                     }
                                                 }
                                                 else

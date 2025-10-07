@@ -11,44 +11,44 @@ namespace NUglify.Tests.JavaScript
     public class Bugs
     {
       
-        [Test]
+		[Test]
         public void Bug35()
         {
             TestHelper.Instance.RunErrorTest();
         }
 
-        [Test]
+		[Test]
         public void Bug57()
         {
             TestHelper.Instance.RunErrorTest();
         }
       
-        [Test]
+		[Test]
         public void Bug63()
         {
             TestHelper.Instance.RunErrorTest(JSError.NoLeftParenthesis, JSError.ExpressionExpected, JSError.NoLeftCurly, JSError.BadSwitch);
         }
 
-        [Test]
+		[Test]
         public void Bug70()
         {
             TestHelper.Instance.RunTest();
         }
 
 
-        [Test]
+		[Test]
         public void Bug76()
         {
             TestHelper.Instance.RunTest("-rename:all");
         }
 
-
-        [Test, Ignore("This is broken in .NET framework, can't be fixed by the developer")]
+		
+		[Test, Ignore("This is broken in .NET framework, can't be fixed by the developer")]
         public void Bug78()
         {
             TestHelper.Instance.RunTest();
         }
-
+		
         [Test]
         public void Bug79()
         {
@@ -133,89 +133,89 @@ namespace NUglify.Tests.JavaScript
         [Test]
         public void Bug156()
         {
-            TestHelper.Instance.RunTest();
+	        TestHelper.Instance.RunTest();
         }
 
         [Test]
         public void Bug159()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
 
         [Test]
         public void Bug160()
         {
-            TestHelper.Instance.RunTest();
+	        TestHelper.Instance.RunTest();
         }
 
         [Test]
         public void Bug163()
         {
-            TestHelper.Instance.RunTest();
+	        TestHelper.Instance.RunTest();
         }
 
         [Test]
         public void Bug181()
         {
-            var uglifyResult = Uglify.Js("function foo() { return 1; }",
-                new CodeSettings {Indent = "   ", OutputMode = OutputMode.MultipleLines});
-            Assert.That(uglifyResult.Code, Is.EqualTo("function foo()\n{\n   return 1\n}"));
+	        var uglifyResult = Uglify.Js("function foo() { return 1; }",
+		        new CodeSettings {Indent = "   ", OutputMode = OutputMode.MultipleLines});
+	        Assert.That(uglifyResult.Code, Is.EqualTo("function foo()\n{\n   return 1\n}"));
         }
 
         [Test]
         public void Bug197()
         {
-            TestHelper.Instance.RunTest("-pretty -line:m,\t");
+	        TestHelper.Instance.RunTest("-pretty -line:m,\t");
         }
 
         [Test]
         public void Bug199JSON()
         {
-            TestHelper.Instance.RunTest("-js:json");
+	        TestHelper.Instance.RunTest("-js:json");
         }
 
         [Test]
         public void Bug199JS()
         {
-            TestHelper.Instance.RunTest();
+	        TestHelper.Instance.RunTest();
         }
 
 
         [Test]
         public void Bug199_SourceMap()
         {
-            UglifyResult result;
+	        UglifyResult result;
 
-            string sFileContent = @"define(""moment"", [], function() { return (function(modules) { })
+	        string sFileContent = @"define(""moment"", [], function() { return (function(modules) { })
 ({
-    /***/ ""./node_modules/moment/locale sync recursive ^\\.\\/.*$"":
-    /*! no static exports found */
-    /***/ (function(module, exports, __webpack_require__) { } ) } ) } )";
+	/***/ ""./node_modules/moment/locale sync recursive ^\\.\\/.*$"":
+	/*! no static exports found */
+	/***/ (function(module, exports, __webpack_require__) { } ) } ) } )";
 
-            var builder = new StringBuilder();
-            using (TextWriter mapWriter = new StringWriter(builder))
-            {
-                using (var sourceMap = new V3SourceMap(mapWriter))
-                {
-                    sourceMap.MakePathsRelative = false;
+	        var builder = new StringBuilder();
+	        using (TextWriter mapWriter = new StringWriter(builder))
+	        {
+		        using (var sourceMap = new V3SourceMap(mapWriter))
+		        {
+			        sourceMap.MakePathsRelative = false;
 
-                    var settings = new CodeSettings();
+			        var settings = new CodeSettings();
                     settings.LineTerminator = "\n";
-                    settings.SymbolsMap = sourceMap;
-                    sourceMap.StartPackage(@"C:\some\long\path\to\js", @"C:\some\other\path\to\map");
+			        settings.SymbolsMap = sourceMap;
+			        sourceMap.StartPackage(@"C:\some\long\path\to\js", @"C:\some\other\path\to\map");
 
-                    result = Uglify.Js(sFileContent, @"C:\some\path\to\output\js", settings);
-                }
-            }
+			        result = Uglify.Js(sFileContent, @"C:\some\path\to\output\js", settings);
+		        }
+	        }
 
-            var expected = @"define(""moment"",[],function(){return function(){}({""./node_modules/moment/locale sync recursive ^\\.\\/.*$"":function(){}})})
+	        var expected = @"define(""moment"",[],function(){return function(){}({""./node_modules/moment/locale sync recursive ^\\.\\/.*$"":function(){}})})
 //# sourceMappingURL=C:\some\other\path\to\map
 ".Replace("\r\n", "\n");
-            Assert.That(result.Code, Is.EqualTo(expected));
+	        Assert.That(result.Code, Is.EqualTo(expected));
 
-            var actual = builder.ToString().Replace("\r\n", "\n");
-            Assert.That(actual, Is.EqualTo(@"{
+	        var actual = builder.ToString().Replace("\r\n", "\n");
+	        Assert.That(actual, Is.EqualTo(@"{
 ""version"":3,
 ""file"":""C:\\some\\long\\path\\to\\js"",
 ""mappings"":""AAAAA,MAAM,CAAC,QAAQ,CAAE,CAAA,CAAE,CAAE,QAAQ,CAAA,CAAG,CAAE,OAAQ,QAAQ,CAAA,CAAU,EAC5D,CAAC,CACS,wDAAwD,CAEvDC,QAAQ,CAAA,CAAuC,EAHzD,CAAD,CADgC,CAA1B"",
@@ -228,50 +228,50 @@ namespace NUglify.Tests.JavaScript
         [Test]
         public void Bug200()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
 
         [Test]
         public void Bug201()
         {
-            TestHelper.Instance.RunErrorTest("-rename:all");
+	        TestHelper.Instance.RunErrorTest("-rename:all");
         }
 
         [Test]
         public void Bug204()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
-
+		
         [Test]
         public void Bug205()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
         
         [Test]
         public void Bug214()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug215()
         {
-            TestHelper.Instance.RunErrorTest("-rename:all");
+	        TestHelper.Instance.RunErrorTest("-rename:all");
         }
 
         [Test]
         public void Bug216()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug241()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
@@ -283,79 +283,79 @@ namespace NUglify.Tests.JavaScript
         [Test]
         public void Bug264()
         {
-            TestHelper.Instance.RunErrorTest("-rename:all");
+	        TestHelper.Instance.RunErrorTest("-rename:all");
         }
 
         [Test]
         public void Bug266()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug274()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug279()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug284()
         {
-            TestHelper.Instance.RunErrorTest("-rename:all", JSError.NoSemicolon, JSError.ExpressionExpected, JSError.SyntaxError, JSError.UndeclaredFunction, JSError.UndeclaredVariable);
+	        TestHelper.Instance.RunErrorTest("-rename:all", JSError.NoSemicolon, JSError.ExpressionExpected, JSError.SyntaxError, JSError.UndeclaredFunction, JSError.UndeclaredVariable);
         }
 
         [Test]
         public void Bug285()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug290()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug293()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug298()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug300()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug301()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug305()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug306()
         {
-            TestHelper.Instance.RunTest("-js:json");
+	        TestHelper.Instance.RunTest("-js:json");
         }
 
         [Test]
@@ -373,19 +373,19 @@ namespace NUglify.Tests.JavaScript
         [Test]
         public void Bug360()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug375()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]
         public void Bug391()
         {
-            TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunTest("-rename:all");
         }
 
         [Test]

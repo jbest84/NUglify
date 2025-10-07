@@ -2776,9 +2776,9 @@ namespace NUglify.JavaScript
                                 {
                                     // the external name is also the local binding
                                     localIdentifier = new BindingIdentifier(nameContext)
-                                        {
-                                            Name = externalName
-                                        };
+                                    {
+                                        Name = externalName
+                                    };
                                     externalName = null;
                                     nameContext = null;
                                 }
@@ -3316,16 +3316,16 @@ namespace NUglify.JavaScript
 
         AstNode ParseClassElement_FieldNoInitialisation(SourceContext staticContext, ArrayLiteral computedName)
         {
-            var context = m_currentToken.Clone();
+	        var context = m_currentToken.Clone();
 
-            // its a field without initialization
-            var field = new ClassField(context);
-            if (computedName == null)
-                field.Name = m_scanner.Identifier;
-            else
-                field.ComputedName = computedName;
+	        // its a field without initialization
+	        var field = new ClassField(context);
+	        if (computedName == null)
+		        field.Name = m_scanner.Identifier;
+	        else
+		        field.ComputedName = computedName;
             field.StaticContext = staticContext;
-            field.IsStatic = staticContext != null;
+	        field.IsStatic = staticContext != null;
 
             if (Settings.AutoRenameGlobals)
             {

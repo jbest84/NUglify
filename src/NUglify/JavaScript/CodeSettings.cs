@@ -20,7 +20,7 @@ using NUglify.Helpers;
 
 namespace NUglify.JavaScript
 {
-    /// <summary>
+	/// <summary>
     /// Object used to store code settings for JavaScript parsing, minification, and output
     /// </summary>
     public class CodeSettings : CommonSettings
@@ -68,11 +68,11 @@ namespace NUglify.JavaScript
         /// <returns></returns>
         public static CodeSettings Pretty()
         {
-            var settings = new CodeSettings();
-            settings.MinifyCode = false;
-            settings.OutputMode = OutputMode.MultipleLines;
-            settings.TermSemicolons = true;
-            return settings;
+	        var settings = new CodeSettings();
+	        settings.MinifyCode = false;
+	        settings.OutputMode = OutputMode.MultipleLines;
+	        settings.TermSemicolons = true;
+	        return settings;
         }
 
         /// <summary>
