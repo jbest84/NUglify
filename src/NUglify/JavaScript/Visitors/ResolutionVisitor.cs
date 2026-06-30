@@ -1513,12 +1513,74 @@ namespace NUglify.JavaScript.Visitors
             {
                 // parameters are handled special. We don't want to build fields from the bindings
                 // here; but we do want to recurse any initializers so we can get lookups from inside them.
-                // TODO: what about initializers INSIDE the bindings?
-                //node.Binding.IfNotNull(b => b.Accept(this));
+                // This includes default-value expressions nested INSIDE the binding pattern, e.g.
+                // function f({ a = outer } = {}) {...} -- the reference to "outer" must be tracked
+                // so it isn't considered unused and so it gets renamed consistently.
+                VisitBindingDefaultValues(node.Binding);
+
                 if (node.Initializer != null)
                 {
                     node.Initializer.Accept(this);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Walks a binding pattern WITHOUT declaring its binding identifiers, visiting any
+        /// default-value expressions (and computed property names) found within so that the
+        /// lookups they contain are tracked by the scope analysis. The binding identifiers
+        /// themselves are declared elsewhere (parameters via the function scope, var/let/const
+        /// via the declaration), so we must not Accept them here or they'd be double-declared.
+        /// </summary>
+        void VisitBindingDefaultValues(AstNode binding)
+        {
+            switch (binding)
+            {
+                case null:
+                    break;
+
+                case InitializerNode initializer:
+                    // the default-value expression -- visit it so its lookups are tracked
+                    initializer.Initializer.IfNotNull(i => i.Accept(this));
+                    // recurse into the bound target to find further nested defaults
+                    VisitBindingDefaultValues(initializer.Binding);
+                    break;
+
+                case ObjectLiteral objectLiteral:
+                    if (objectLiteral.Properties != null)
+                    {
+                        foreach (var property in objectLiteral.Properties)
+                        {
+                            VisitBindingDefaultValues(property);
+                        }
+                    }
+                    break;
+
+                case ObjectLiteralProperty property:
+                    // computed property names (e.g. { [outer]: x }) reference outer scope
+                    if (property.Name is ComputedPropertyField)
+                    {
+                        property.Name.Accept(this);
+                    }
+                    VisitBindingDefaultValues(property.Value);
+                    break;
+
+                case ArrayLiteral arrayLiteral:
+                    if (arrayLiteral.Elements != null)
+                    {
+                        foreach (var element in arrayLiteral.Elements)
+                        {
+                            VisitBindingDefaultValues(element);
+                        }
+                    }
+                    break;
+
+                case UnaryExpression unary when unary.OperatorToken == JSToken.RestSpread:
+                    VisitBindingDefaultValues(unary.Operand);
+                    break;
+
+                // BindingIdentifier or anything else: it's a pure declaration target with no
+                // nested default-value expression, so there's nothing to track here.
             }
         }
 
@@ -1761,6 +1823,11 @@ namespace NUglify.JavaScript.Visitors
                     // do anything at execution time.
                     node.Index = -1;
                 }
+
+                // also track any lookups that appear in default-value expressions nested
+                // inside the binding pattern, e.g. const { a = outer } = {} -- without this,
+                // "outer" would be considered unused and dropped/renamed incorrectly.
+                VisitBindingDefaultValues(node.Binding);
             }
         }
 
