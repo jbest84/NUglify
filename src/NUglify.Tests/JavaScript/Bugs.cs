@@ -407,7 +407,7 @@ namespace NUglify.Tests.JavaScript
         }
 
         [Test]
-        public void DestructuringDefaultReferencesOuterBinding()
+        public void Bug442()
         {
             // a reference inside a destructuring default-value expression must be tracked as a
             // usage of the outer binding it refers to, so the binding isn't dropped/renamed
