@@ -405,5 +405,38 @@ namespace NUglify.Tests.JavaScript
         {
             TestHelper.Instance.RunTest("-rename:all");
         }
+
+        [Test]
+        public void Bug442()
+        {
+            // a reference inside a destructuring default-value expression must be tracked as a
+            // usage of the outer binding it refers to, so the binding isn't dropped/renamed
+            // without updating the reference (which would produce a ReferenceError).
+
+            // function parameter as the outer binding
+            var result = Uglify.Js("function make(dep) { class C { constructor({ value = dep } = {}) { this.value = value; } } return C; }");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo("function make(n){class t{constructor({value:t=n}={}){this.value=t}}return t}"));
+
+            // const declaration as the outer binding
+            result = Uglify.Js("function make(dep) { const { value = dep } = {}; return value; }");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo("function make(n){const{value:t=n}={};return t}"));
+
+            // arrow parameter as the outer binding
+            result = Uglify.Js("var make = (dep) => { return ({ value = dep } = {}) => value; };");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo("var make=n=>({value:t=n}={})=>t"));
+
+            // array destructuring default referencing outer binding
+            result = Uglify.Js("function make(dep) { function inner([ value = dep ] = []) { return value; } return inner; }");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo("function make(n){function t([t=n]=[]){return t}return t}"));
+
+            // array destructuring default in a const declaration
+            result = Uglify.Js("function make(dep) { const [ value = dep ] = []; return value; }");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo("function make(n){const[t=n]=[];return t}"));
+        }
     }
 }
