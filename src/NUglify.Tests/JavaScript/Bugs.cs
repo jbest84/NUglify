@@ -378,6 +378,20 @@ namespace NUglify.Tests.JavaScript
         }
 
         [Test]
+        public void Bug389()
+        {
+            AssertMinified(@"
+function init() {
+    if (window.a == null) return;
+    let sel = 1;
+    function desel() {
+        sel = -1;
+    }
+    desel();
+}", "function init(){function t(){n=-1}if(window.a==null)return;let n=1;t()}");
+        }
+
+        [Test]
         public void Bug391()
         {
 	        TestHelper.Instance.RunTest("-rename:all");
