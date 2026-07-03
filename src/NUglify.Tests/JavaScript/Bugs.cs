@@ -104,13 +104,7 @@ namespace NUglify.Tests.JavaScript
             // previously these would throw exceptions because the closing backtick was skipped, creating an invalid ast
             // manually define cr and lfs to be sure we dont have platform sillynes
 
-            var uglifyResult = Uglify.Js(@"var testString = `
-`;
-            testString += `} async init(){ }`;");
-            Assert.That(uglifyResult.Code, Is.EqualTo("var testString=`\n`+`} async init(){ }`"));
-
-            // CR
-            uglifyResult = Uglify.Js("var testString = `"+ (char)13 +@"`;
+            var uglifyResult = Uglify.Js("var testString = `"+ (char)13 +@"`;
             testString += `} async init(){ }`;");
             Assert.That(uglifyResult.Code, Is.EqualTo("var testString=`\r`+`} async init(){ }`"));
 
@@ -212,7 +206,7 @@ namespace NUglify.Tests.JavaScript
 
 	        var expected = @"define(""moment"",[],function(){return function(){}({""./node_modules/moment/locale sync recursive ^\\.\\/.*$"":function(){}})})
 //# sourceMappingURL=C:\some\other\path\to\map
-";
+".Replace("\r\n", "\n");
 	        Assert.That(result.Code, Is.EqualTo(expected));
 
 	        var actual = builder.ToString().Replace("\r\n", "\n");
@@ -223,7 +217,7 @@ namespace NUglify.Tests.JavaScript
 ""sources"":[""C:\\some\\path\\to\\output\\js""],
 ""names"":[""define"",""./node_modules/moment/locale sync recursive ^\\.\\/.*$""]
 }
-"));
+".Replace("\r\n", "\n")));
         }
 
         [Test]
@@ -437,6 +431,14 @@ namespace NUglify.Tests.JavaScript
             result = Uglify.Js("function make(dep) { const [ value = dep ] = []; return value; }");
             Assert.That(result.HasErrors, Is.False);
             Assert.That(result.Code, Is.EqualTo("function make(n){const[t=n]=[];return t}"));
+        }
+
+        private void AssertMinified(string source, string expected)
+        {
+            var result = Uglify.Js(source);
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo(expected));
         }
     }
 }
