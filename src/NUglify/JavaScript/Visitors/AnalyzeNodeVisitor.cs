@@ -1348,6 +1348,8 @@ namespace NUglify.JavaScript.Visitors
                         {
                             var returnNode = ifNode.TrueBlock[0] as ReturnStatement;
                             if (returnNode != null && returnNode.Operand == null
+                                // let/const and class declarations are block-scoped, so moving them into a
+                                // new block would cut them off from any references left outside that block
                                 && !ContainsBlockScopedDeclaration(node, ndx + 1))
                             {
                                 // we have if(cond)return;
@@ -1561,10 +1563,11 @@ namespace NUglify.JavaScript.Visitors
             return condition != null && matchExpression != null ? ifNode : null;
         }
 
+        /// <summary>
+        /// Returns true if this block contains let/const or a class declaration, all of which are scoped to that block and not the enclosing function
+        /// </summary>
         static bool ContainsBlockScopedDeclaration(BlockStatement node, int startIndex)
         {
-            // let/const and class declarations are block-scoped, so moving them into a
-            // new block would cut them off from any references left outside that block
             for (var ndx = startIndex; ndx < node.Count; ++ndx)
             {
                 if (node[ndx] is LexicalDeclaration
