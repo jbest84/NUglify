@@ -206,7 +206,7 @@ namespace NUglify.Tests.JavaScript
 
 	        var expected = @"define(""moment"",[],function(){return function(){}({""./node_modules/moment/locale sync recursive ^\\.\\/.*$"":function(){}})})
 //# sourceMappingURL=C:\some\other\path\to\map
-".Replace("\r\n", "\n");
+";
 	        Assert.That(result.Code, Is.EqualTo(expected));
 
 	        var actual = builder.ToString().Replace("\r\n", "\n");
@@ -217,7 +217,7 @@ namespace NUglify.Tests.JavaScript
 ""sources"":[""C:\\some\\path\\to\\output\\js""],
 ""names"":[""define"",""./node_modules/moment/locale sync recursive ^\\.\\/.*$""]
 }
-".Replace("\r\n", "\n")));
+"));
         }
 
         [Test]
