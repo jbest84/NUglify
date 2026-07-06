@@ -217,5 +217,57 @@ body
             Assert.That(uglifyResult.Code, Is.EqualTo("h1{font-size:clamp(1.3rem,1.4rem + .3vw,1.7rem)}"));
             Assert.That(uglifyResult.HasErrors, Is.False);
         }
+
+        [Test]
+        public void Bug439()
+        {
+            var src = @"
+@media (width < 250px) or (height < 500px)
+{
+    body
+    {
+        color: red;
+    }
+}
+";
+
+            AssertMinified(src, "@media(width<250px) or (height<500px){body{color:#f00}}");
+        }
+
+        [Test]
+        public void Bug439MediaQueryRangeGreaterOrEqual()
+        {
+            AssertMinified("@media (width >= 600px) { body { color: red; } }",
+                "@media(width>=600px){body{color:#f00}}");
+        }
+
+        [Test]
+        public void Bug439MediaQueryRangeEquals()
+        {
+            AssertMinified("@media (width = 600px) { body { color: red; } }",
+                "@media(width=600px){body{color:#f00}}");
+        }
+
+        [Test]
+        public void Bug439MediaQueryRangeDoubleSided()
+        {
+            AssertMinified("@media (400px <= width <= 700px) { body { color: red; } }",
+                "@media(400px<=width<=700px){body{color:#f00}}");
+        }
+
+        [Test]
+        public void Bug439MediaQueryRangeWithMediaTypeAnd()
+        {
+            AssertMinified("@media screen and (width > 100px) { body { color: red; } }",
+                "@media screen and (width>100px){body{color:#f00}}");
+        }
+
+        private void AssertMinified(string source, string expected)
+        {
+            var result = Uglify.Css(source);
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo(expected));
+        }
     }
 }
