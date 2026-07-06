@@ -118,11 +118,11 @@ Microsoft Ajax Minifier was created and maintained by Ron Logan, with contributi
 
 Nuglify was ported and refactored to github by Alexandre Mutel aka [xoofx](http://xoofx.com)
 
-It is now maintained by Andrew Bullock aka [trullock](https://github.com/trullock)
+It is now maintained by Jason Best aka [jbest84](https://github.com/jbest84)
 
-## Donate
+### Previous Maintainers
+Andrew Bullock aka [trullock](https://github.com/trullock)
 
-All donations to help support this project are very welcome https://paypal.me/trullock
 
 ## Credits
 
