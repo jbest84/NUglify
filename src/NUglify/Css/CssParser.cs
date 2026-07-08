@@ -4969,7 +4969,6 @@ namespace NUglify.Css
         /// <summary>
         /// Always add new line to the stream
         /// </summary>
-        /// <param name="sb"></param>
         void AddNewLine()
         {
             if (!lastOutputWasNewLine)

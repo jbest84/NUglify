@@ -1225,7 +1225,7 @@ namespace NUglify.JavaScript
         /// <summary>
         /// Determines if the character(s) at the given index is a valid identifier start
         /// </summary>
-        /// <param name="startIndex">potential identifier string</param>
+        /// <param name="text">potential identifier string</param>
         /// <param name="index">index of the starting character</param>
         /// <returns>true if the character at the given position is a valid identifier start</returns>
         static bool IsValidIdentifierStart(string text, int index)
@@ -1237,8 +1237,8 @@ namespace NUglify.JavaScript
         /// Determines if the character(s) at the given index is a valid identifier start,
         /// and adjust the index to point to the following character
         /// </summary>
-        /// <param name="startIndex">potential identifier string</param>
-        /// <param name="index">index of the starting character on entry; index of the NEXT character on exit</param>
+        /// <param name="name">potential identifier string</param>
+        /// <param name="startIndex">index of the starting character on entry; index of the NEXT character on exit</param>
         /// <returns>true if the character at the given position is a valid identifier start</returns>
         static bool IsValidIdentifierStart(string name, ref int startIndex)
         {
@@ -1293,7 +1293,7 @@ namespace NUglify.JavaScript
         /// <summary>
         /// Determines if the character(s) at the given index is a valid identifier part
         /// </summary>
-        /// <param name="startIndex">potential identifier string</param>
+        /// <param name="text">potential identifier string</param>
         /// <param name="index">index of the starting character</param>
         /// <returns>true if the character at the given position is a valid identifier part</returns>
         static bool IsValidIdentifierPart(string text, int index)

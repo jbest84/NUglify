@@ -126,7 +126,7 @@ namespace NUglify
 		/// <summary>
 		/// Set the collection of errors to ignore
 		/// </summary>
-		/// <param name="definedNames">collection of error code strings</param>
+		/// <param name="ignoreErrors">collection of error code strings</param>
 		/// <returns>number of error codes successfully added to the collection</returns>
 		public int SetIgnoreErrors(IEnumerable<string> ignoreErrors)
 		{

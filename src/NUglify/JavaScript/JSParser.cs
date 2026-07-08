@@ -2868,7 +2868,6 @@ namespace NUglify.JavaScript
         {
             BindingIdentifier name = null;
             ArrayLiteral computedName = null;
-            AstNodeList formalParameters = null;
             bool inExpression = (functionType == FunctionType.Expression);
 
             var isAsync = m_currentToken.Is(JSToken.Async);
@@ -5561,8 +5560,7 @@ namespace NUglify.JavaScript
         /// set the source by creating a document from the actual source and its context,
         /// then create and initialize a scanner for that document.
         /// </summary>
-        /// <param name="source">source code</param>
-        /// <param name="sourceContext">optional context for the source code</param>
+        /// <param name="documentContext">document context for the source code</param>
         private void SetDocumentContext(DocumentContext documentContext)
         {
             // set the document object to point to this parser.
@@ -5806,7 +5804,7 @@ namespace NUglify.JavaScript
         /// Convert the given bigint string to a BigInteger value
         /// </summary>
         /// <param name="str">string representation of a number</param>
-        /// <param name="doubleValue">output value</param>
+        /// <param name="bigIntegerValue">output value</param>
         /// <returns>true if there were no problems; false if there were</returns>
         public bool ConvertBigIntLiteralToBigInteger(string str, out double bigIntegerValue)
         {
@@ -6116,7 +6114,6 @@ namespace NUglify.JavaScript
         ///  token or not
         /// </summary>
         /// <param name="errorId">Error to report</param>
-        /// <param name="skipToken">true to move to the next token when GetNextToken is called; false to stay on this token</param>
         /// <param name="context">context to report against, or current token if null</param>
         /// <param name="forceToError">whether to force to an error, or use the default severity</param>
         private void ReportError(JSError errorId, SourceContext context = null, bool forceToError = false)

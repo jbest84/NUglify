@@ -281,7 +281,7 @@ namespace NUglify.JavaScript
         /// <summary>
         /// sets the collection of known global names to the enumeration of strings passed to this method
         /// </summary>
-        /// <param name="globalArray">array of known global names</param>
+        /// <param name="noRenameNames">array of known global names</param>
         public int SetNoAutoRenames(IEnumerable<string> noRenameNames)
         {
             m_noRenameSet.Clear();
@@ -452,7 +452,7 @@ namespace NUglify.JavaScript
         /// <summary>
         /// Set the collection of debug "lookup" identifiers
         /// </summary>
-        /// <param name="definedNames">collection of debug lookup identifier strings</param>
+        /// <param name="debugLookups">collection of debug lookup identifier strings</param>
         /// <returns>number of names successfully added to the collection</returns>
         public int SetDebugNamespaces(IEnumerable<string> debugLookups)
         {
@@ -1060,9 +1060,6 @@ namespace NUglify.JavaScript
         /// </summary>
         PropertyRenaming                            = 0x0000000080000000,
 
-        /// <summary>
-        /// Use preprocessor defines and the ///#IFDEF directive
-        /// </summary>
         // WAY too dangerous to have this a kill-switch. Made a separate CodeSettings property: IgnorePreprocessorDefines.
         // people put -kill:-1 thinking they're just turning off minification, but they were ALSO turning off all the ///#IF processing
         // and getting unexpected errors when both paths make the output.
