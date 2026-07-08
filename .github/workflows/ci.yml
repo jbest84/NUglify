@@ -34,3 +34,17 @@ jobs:
 
       - name: Test
         run: dotnet test src\NUglify.Tests\NUglify.Tests.csproj -c Release --no-build -p:UseSharedCompilation=false
+
+      - name: Pack
+        run: >
+          dotnet pack src\NUglify\NUglify.csproj
+          -c Release
+          -o artifacts\packages
+          --no-build
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: nupkg
+          path: artifacts/packages/*
+          if-no-files-found: error
