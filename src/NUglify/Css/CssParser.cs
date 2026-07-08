@@ -1483,20 +1483,22 @@ namespace NUglify.Css
                 ReportError(0, CssErrorCode.ExpectedMediaIdentifier, CurrentTokenText);
             }
 
-            // either we have no more and-delimited expressions,
-            // OR we have an *identifier* AND (and followed by space)
-            // OR we have a *function* AND (and followed by the opening paren, scanned as a function)
+            // either we have no more combinator-delimited expressions,
+            // OR we have an *identifier* AND/OR (combinator followed by space)
+            // OR we have a *function* AND/OR (combinator followed by the opening paren, scanned as a function)
             while ((CurrentTokenType == TokenType.Identifier
-                && string.Compare(CurrentTokenText, "AND", StringComparison.OrdinalIgnoreCase) == 0)
+                && (string.Compare(CurrentTokenText, "AND", StringComparison.OrdinalIgnoreCase) == 0
+                || string.Compare(CurrentTokenText, "OR", StringComparison.OrdinalIgnoreCase) == 0))
                 || (CurrentTokenType == TokenType.Function
-                && string.Compare(CurrentTokenText, "AND(", StringComparison.OrdinalIgnoreCase) == 0))
+                && (string.Compare(CurrentTokenText, "AND(", StringComparison.OrdinalIgnoreCase) == 0
+                || string.Compare(CurrentTokenText, "OR(", StringComparison.OrdinalIgnoreCase) == 0)))
             {
                 // if we might need a space, output it now
                 if (mightNeedSpace || Settings.OutputDeclarationWhitespace)
 	                Append(' ');
 
-                // output the AND text.
-                // MIGHT be AND( if it was a function, so first set a flag so we will know
+                // output the AND/OR text.
+                // MIGHT be AND( or OR( if it was a function, so first set a flag so we will know
                 // wether or not to expect the opening paren
                 if (CurrentTokenType == TokenType.Function)
                 {
@@ -1505,9 +1507,10 @@ namespace NUglify.Css
                     ReportError(1, CssErrorCode.MediaQueryRequiresSpace, CurrentTokenText);
 
                     //and then fix what the developer wrote and make sure there is a space
-                    // between the AND and the (. The CSS3 spec says it is invalid to not have a
-                    // space there.
-                    Append("and (");
+                    // between the combinator and the (. The CSS3 spec says it is invalid to not
+                    // have a space there.
+                    Append(CurrentTokenText.Substring(0, CurrentTokenText.Length - 1).ToLowerInvariant());
+                    Append(" (");
                     SkipSpace();
 
                     // included the paren
@@ -1515,8 +1518,8 @@ namespace NUglify.Css
                 }
                 else
                 {
-                    // didn't include the paren -- it BETTER be the next token 
-                    // (after we output the AND token)
+                    // didn't include the paren -- it BETTER be the next token
+                    // (after we output the AND/OR token)
                     AppendCurrent();
                     SkipSpace();
                     if (CurrentTokenType == TokenType.Character
@@ -1551,14 +1554,17 @@ namespace NUglify.Css
                 SkipSpace();
             }
 
-            // media feature is required, and it's an ident
+            // the expression normally starts with the media feature ident, but the
+            // Media Queries Level 4 range syntax may lead with a value instead,
+            // e.g. (400px <= width <= 700px)
             if (CurrentTokenType == TokenType.Identifier)
             {
                 // output the media feature and skip any space
                 AppendCurrent();
                 SkipSpace();
 
-                // the next token should either be a colon (followed by an expression) or the closing paren
+                // the next token should either be a colon (followed by an expression),
+                // a range comparison operator, or the closing paren
                 if (CurrentTokenType == TokenType.Character && CurrentTokenText == ":")
                 {
                     // got an expression.
@@ -1590,6 +1596,11 @@ namespace NUglify.Css
                         ReportError(0, CssErrorCode.ExpectedClosingParenthesis, CurrentTokenText);
                     }
                 }
+                else if (IsMediaQueryComparison())
+                {
+                    // range syntax with the media feature first, e.g. (width < 250px)
+                    ParseMediaQueryRange();
+                }
                 else if (CurrentTokenType == TokenType.Character && CurrentTokenText == ")")
                 {
                     // end of the expressions -- output the closing paren and skip any whitespace
@@ -1601,9 +1612,114 @@ namespace NUglify.Css
                     ReportError(0, CssErrorCode.ExpectedClosingParenthesis, CurrentTokenText);
                 }
             }
+            else if (IsMediaQueryValue())
+            {
+                // range syntax with a value first, e.g. (400px <= width <= 700px).
+                // parse the leading value; it will stop at the comparison operator
+                if (ParseExpr() != Parsed.True)
+                {
+                    ReportError(0, CssErrorCode.ExpectedExpression, CurrentTokenText);
+                }
+
+                if (IsMediaQueryComparison())
+                {
+                    ParseMediaQueryRange();
+                }
+                else
+                {
+                    ReportError(0, CssErrorCode.ExpectedClosingParenthesis, CurrentTokenText);
+                }
+            }
             else
             {
                 ReportError(0, CssErrorCode.ExpectedMediaFeature, CurrentTokenText);
+            }
+        }
+
+        bool IsMediaQueryComparison()
+        {
+            return CurrentTokenType == TokenType.Character
+                && (CurrentTokenText == "<" || CurrentTokenText == ">" || CurrentTokenText == "=");
+        }
+
+        bool IsMediaQueryValue()
+        {
+            switch (CurrentTokenType)
+            {
+                case TokenType.Number:
+                case TokenType.Percentage:
+                case TokenType.Dimension:
+                case TokenType.AbsoluteLength:
+                case TokenType.RelativeLength:
+                case TokenType.Angle:
+                case TokenType.Time:
+                case TokenType.Frequency:
+                case TokenType.Resolution:
+                case TokenType.Fraction:
+                case TokenType.Function:
+                    return true;
+
+                case TokenType.Character:
+                    // a unary sign starting a numeric value
+                    return CurrentTokenText == "-" || CurrentTokenText == "+";
+
+                default:
+                    return false;
+            }
+        }
+
+        void ParseMediaQueryRange()
+        {
+            // Media Queries Level 4 range syntax: one or two comparisons,
+            // e.g. (width >= 600px) or (400px <= width <= 700px)
+            do
+            {
+                ParseMediaQueryComparison();
+
+                // parse the value on the other side of the comparison -- it's not optional
+                if (ParseExpr() != Parsed.True)
+                {
+                    ReportError(0, CssErrorCode.ExpectedExpression, CurrentTokenText);
+                    break;
+                }
+            }
+            while (IsMediaQueryComparison());
+
+            // better be the closing paren
+            if (CurrentTokenType == TokenType.Character && CurrentTokenText == ")")
+            {
+                // output the closing paren and skip any whitespace
+                AppendCurrent();
+                SkipSpace();
+            }
+            else
+            {
+                ReportError(0, CssErrorCode.ExpectedClosingParenthesis, CurrentTokenText);
+            }
+        }
+
+        void ParseMediaQueryComparison()
+        {
+            // current token is the first character of the comparison operator: <, >, or =
+            if (Settings.OutputDeclarationWhitespace)
+            {
+                Append(' ');
+            }
+
+            var isEquals = CurrentTokenText == "=";
+            AppendCurrent();
+            SkipSpace();
+
+            // less-than and greater-than may be followed by an equals sign (<= or >=)
+            if (!isEquals && CurrentTokenType == TokenType.Character && CurrentTokenText == "=")
+            {
+                AppendCurrent();
+                SkipSpace();
+            }
+
+            if (Settings.OutputDeclarationWhitespace)
+            {
+                Append(' ');
             }
         }
 
