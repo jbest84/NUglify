@@ -1,7 +1,4 @@
-# NUglify [![Build status](https://ci.appveyor.com/api/projects/status/q27y1mi2jf389vyp?svg=true)](https://ci.appveyor.com/project/jbest84/nuglify) [![NuGet](https://img.shields.io/nuget/v/NUglify.svg)](https://www.nuget.org/packages/NUglify/)
-
-
-<img align="right" width="160px" height="160px" src="images/nuglify.png">
+# NUglify [![CI](https://github.com/jbest84/NUglify/actions/workflows/ci.yml/badge.svg)](https://github.com/jbest84/NUglify/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/NUglify.svg)](https://www.nuget.org/packages/NUglify/)
 
 NUglify provides minify and compression methods for CSS, JavaScript and HTML files.
 
@@ -9,9 +6,9 @@ This repository is a fork of the [Microsoft Ajax Minifier](https://github.com/mi
 
 While dotnet Core is now relying on the **node.js** ecosystem for its client side tooling (e.g: minify), NUglify is **still useful** in scenarios where we need to access this tooling from a .NET application (not necessarily an ASP one) without having to install another developer platform.
 
-The original AjaxMin documentation of the project is available [here](doc/readme.md)
+The original AjaxMin documentation of the project is available [here](https://github.com/jbest84/NUglify/blob/master/doc/readme.md)
 
-See the [ChangeLog](changelog.md)
+See the [ChangeLog](https://github.com/jbest84/NUglify/blob/master/changelog.md)
 
 ## Features
 
@@ -26,7 +23,7 @@ See the [ChangeLog](changelog.md)
   - Similar to the popular [html-minifier in JS](https://github.com/kangax/html-minifier)
   - Super fast and GC friendly parser and minifier, 10x times faster than existing html compressor for .NET
   - Method `Uglify.HtmlToText` that allows to extract the text from an HTML document
-- Compatible with `NET3.5`, `NET4.0+` and `CoreCLR` (`netstandard1.3+`)
+- Compatible with `.NET Framework 4.0`, `.NET Standard 2.0`, and `.NET 10.0`
 
 ## Download
 
@@ -110,8 +107,7 @@ See #130 if you want to try and fix it yourself.
 
 ## License
 
-This software is released under the [BSD-Clause 2 license](http://opensource.org/licenses/BSD-2-Clause).
-The original Microsoft Ajax Minifier was released under the [Apache 2.0 license](http://www.apache.org/licenses/LICENSE-2.0)
+This package includes the repository `license.txt` file, which covers the BSD 2-Clause terms for NUglify and the original Apache 2.0 notice for Microsoft Ajax Minifier.
 
 ## Author
 

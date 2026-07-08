@@ -961,6 +961,8 @@ namespace NUglify.Tests.JavaScript.Common
                     using (StreamReader rightReader = new StreamReader(expectedPath))
                     {
                         string right = s_testRunRegex.Replace(rightReader.ReadToEnd(), "$1TESTRUNPATH$2").Replace("\r\n", "\n");
+                        left = left.Replace("\r\n", "\n").TrimEnd('\r', '\n');
+                        right = right.Replace("\r\n", "\n").TrimEnd('\r', '\n');
                         Assert.That(left, Is.EqualTo(right), compareError);
                     }
                 }

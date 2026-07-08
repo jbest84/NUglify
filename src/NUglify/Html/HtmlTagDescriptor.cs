@@ -13,11 +13,12 @@ namespace NUglify.Html
         public delegate bool AcceptContentDelegate(HtmlElement parent, HtmlElement child, ref HtmlTagDescriptor childDescriptor);
 
         /// <summary>
-        /// A delegate to check whether a end tag can be omitted.
+        /// A delegate to check whether an end tag can be omitted.
         /// </summary>
-        /// <param name="tag">The tag for which we want to test if a end tag can be omitted.</param>
-        /// <param name="nextSibling">The next sibling or null if it is the last tag of its parent.</param>
-        /// <returns><c>true</c> if the end tag can be omitted; <c>false</c> otherwise</returns>
+        /// <param name="tag">The tag for which we want to test whether an end tag can be omitted.</param>
+        /// <param name="nextSibling">The next sibling, or null if it is the last tag of its parent.</param>
+        /// <param name="whileParsing">True when the parser is still consuming input; false when checking a completed tree.</param>
+        /// <returns><c>true</c> if the end tag can be omitted; <c>false</c> otherwise.</returns>
         public delegate bool CanOmitDelegate(HtmlElement tag, HtmlElement nextSibling, bool whileParsing);
 
         public HtmlTagDescriptor(string name, ContentKind category, string[] parentTags, ContentKind parentKind, string[] acceptTags, ContentKind acceptContent = ContentKind.None, TagEndKind endKind = TagEndKind.Required, CanOmitDelegate canOmitEndTag = null, CanOmitDelegate canOmitStartTag = null)
@@ -345,19 +346,19 @@ namespace NUglify.Html
 
         static bool HeadStartTagOmission(HtmlElement parent, HtmlElement nextSibling, bool whileParsing)
         {
-            // A head element’s start tag may be omitted if the element is empty, or if the first thing inside the head element is an element. 
+            // A head element's start tag may be omitted if the element is empty, or if the first thing inside the head element is an element. 
             return (!whileParsing || nextSibling == null) && (parent.FirstChild == null || parent.FirstChild is HtmlElement);
         }
 
         static bool HeadEndTagOmission(HtmlElement parent, HtmlElement nextSibling, bool whileParsing)
         {
-            // A head element’s end tag may be omitted if the head element is not immediately followed by a space character or a comment.
+            // A head element's end tag may be omitted if the head element is not immediately followed by a space character or a comment.
             return (!whileParsing || nextSibling == null) && (parent.NextSibling == null || (parent.FirstChild is HtmlText && !((HtmlText)parent.FirstChild).Slice.IsEmptyOrWhiteSpace()) || !(parent.NextSibling is HtmlComment));
         }
 
         static bool BodyStartTagOmission(HtmlElement parent, HtmlElement nextSibling, bool whileParsing)
         {
-            // A body element’s start tag may be omitted if:
+            // A body element's start tag may be omitted if:
             // - the element is empty, 
             // - or if the first thing inside the body element is not a space character or a comment, except if the first thing inside the body element is a meta, link, script, style, or template element. 
             var content = parent.FirstChild;
@@ -376,7 +377,7 @@ namespace NUglify.Html
 
         static bool BodyEndTagOmission(HtmlElement parent, HtmlElement nextSibling, bool whileParsing)
         {
-            // A body element’s end tag may be omitted if the body element is not immediately followed by a comment.
+            // A body element's end tag may be omitted if the body element is not immediately followed by a comment.
             return (!whileParsing || nextSibling == null) && !(parent.NextSibling is HtmlComment);
         }
     }

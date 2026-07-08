@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+using System;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using NUnit.Framework;
@@ -14,8 +15,6 @@ namespace NUglify.Tests.JavaScript
         public StdIn()
         {
         }
-
-        TestContext testContextInstance;
 
         public static string ExpectedFolder { get; private set; }
         public static string InputFolder { get; private set; }
@@ -46,7 +45,7 @@ namespace NUglify.Tests.JavaScript
         // [ClassCleanup()]
         // public static void MyClassCleanup() { }
         //
-        // Use TestInitialize to run code before running each test 
+        // Use TestInitialize to run code before running each test
         // [TestInitialize()]
         // public void MyTestInitialize() { }
         //
@@ -78,10 +77,11 @@ namespace NUglify.Tests.JavaScript
             // we are linking to the EXE in this project, so this gives us the path
             // we need to spawn a new process for which we can redirect the stdin stream.
             var ajaxMin = Assembly.GetAssembly(typeof(IScopeReport));
+            var ajaxMinPath = ajaxMin.Location;
+            var ajaxMinExePath = Path.ChangeExtension(ajaxMinPath, ".exe");
 
             // create the process to the EXE with a redirected stdin
             var ajaxMinProcess = new Process();
-            ajaxMinProcess.StartInfo.FileName = ajaxMin.Location;
             ajaxMinProcess.StartInfo.ErrorDialog = false;
             ajaxMinProcess.StartInfo.UseShellExecute = false;
             ajaxMinProcess.StartInfo.RedirectStandardInput = true;
@@ -90,7 +90,17 @@ namespace NUglify.Tests.JavaScript
 
             // no input files mean pull from stdin. Add the -js flag so we know to expect JavaScript.
             // quote the output path because it might contains spaces.
-            ajaxMinProcess.StartInfo.Arguments = "-a -js -out \"" + outputPath + '"';
+            var arguments = "-a -js -out \"" + outputPath + '"';
+            if (File.Exists(ajaxMinExePath))
+            {
+                ajaxMinProcess.StartInfo.FileName = ajaxMinExePath;
+                ajaxMinProcess.StartInfo.Arguments = arguments;
+            }
+            else
+            {
+                ajaxMinProcess.StartInfo.FileName = "dotnet";
+                ajaxMinProcess.StartInfo.Arguments = "\"" + ajaxMinPath + "\" " + arguments;
+            }
 
             // trace the command line
             Trace.WriteLine("EXECUTING:");
@@ -110,7 +120,7 @@ namespace NUglify.Tests.JavaScript
             Trace.WriteLine(string.Format("odd \"{0}\" \"{1}\"", expectedPath, outputPath));
             Trace.WriteLine(string.Empty);
 
-            // start the process 
+            // start the process
             ajaxMinProcess.Start();
 
             // write the input file to the redirected standard input, and close the standard input

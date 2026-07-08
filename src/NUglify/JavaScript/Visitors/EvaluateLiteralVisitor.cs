@@ -36,6 +36,7 @@ namespace NUglify.JavaScript.Visitors
         /// parent is a CallNode. If it is, and if the string literal can be an identifier,
         /// we'll replace it with a Member-Dot operation.
         /// </summary>
+        /// <param name="node">binary operation being updated</param>
         /// <param name="newLiteral">newLiteral we intend to replace this binaryop node with</param>
         /// <returns>true if we replaced the parent callnode with a member-dot operation</returns>
         bool ReplaceMemberBracketWithDot(BinaryExpression node, ConstantWrapper newLiteral)
@@ -183,6 +184,7 @@ namespace NUglify.JavaScript.Visitors
         /// <summary>
         /// Both the operands of this operator are constants. See if we can evaluate them
         /// </summary>
+        /// <param name="node">operator being evaluated</param>
         /// <param name="left">left-side operand</param>
         /// <param name="right">right-side operand</param>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
@@ -325,6 +327,7 @@ namespace NUglify.JavaScript.Visitors
         /// combined constant value, and then rotate it up -- replace our binary operator
         /// with this newly-modified binary operator, and then attempt to re-evaluate it.
         /// </summary>
+        /// <param name="node">binary operator being replaced</param>
         /// <param name="binaryOp">the binary operator that is our left-hand operand</param>
         /// <param name="newLiteral">the newly-combined literal</param>
         void RotateFromLeft(BinaryExpression node, BinaryExpression binaryOp, ConstantWrapper newLiteral)
@@ -349,6 +352,7 @@ namespace NUglify.JavaScript.Visitors
         /// combined constant value, and then rotate it up -- replace our binary operator
         /// with this newly-modified binary operator, and then attempt to re-evaluate it.
         /// </summary>
+        /// <param name="node">binary operator being replaced</param>
         /// <param name="binaryOp">the binary operator that is our right-hand operand</param>
         /// <param name="newLiteral">the newly-combined literal</param>
         void RotateFromRight(BinaryExpression node, BinaryExpression binaryOp, ConstantWrapper newLiteral)
@@ -402,6 +406,7 @@ namespace NUglify.JavaScript.Visitors
         /// <summary>
         /// Evaluate: (OTHER [op] CONST) [op] CONST
         /// </summary>
+        /// <param name="node">operator being evaluated</param>
         /// <param name="thisConstant">second constant</param>
         /// <param name="otherConstant">first constant</param>
         /// <param name="leftExpression">first operator</param>
@@ -558,6 +563,7 @@ namespace NUglify.JavaScript.Visitors
         /// <summary>
         /// Evaluate: (CONST [op] OTHER) [op] CONST
         /// </summary>
+        /// <param name="node">operator being evaluated</param>
         /// <param name="thisConstant">second constant</param>
         /// <param name="otherConstant">first constant</param>
         /// <param name="leftExpression">first operator</param>
@@ -649,9 +655,10 @@ namespace NUglify.JavaScript.Visitors
         /// <summary>
         /// Evaluate: CONST [op] (CONST [op] OTHER)
         /// </summary>
+        /// <param name="node">operator being evaluated</param>
         /// <param name="thisConstant">first constant</param>
         /// <param name="otherConstant">second constant</param>
-        /// <param name="leftOperator">second operator</param>
+        /// <param name="rightExpression">second operator</param>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
         void EvalToTheRight(BinaryExpression node, ConstantWrapper thisConstant, ConstantWrapper otherConstant, BinaryExpression rightExpression)
         {
@@ -776,6 +783,7 @@ namespace NUglify.JavaScript.Visitors
         /// <summary>
         /// Eval the two constants: CONST [op] (OTHER [op] CONST)
         /// </summary>
+        /// <param name="node">operator being evaluated</param>
         /// <param name="thisConstant">first constant</param>
         /// <param name="otherConstant">second constant</param>
         /// <param name="rightExpression">second operator</param>

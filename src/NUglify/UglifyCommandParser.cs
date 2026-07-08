@@ -1100,8 +1100,8 @@ namespace NUglify
                                         CssSettings.OutputMode = OutputMode.SingleLine;
 
                                     // and four spaces per indent level
-                                    JSSettings.IndentSize =
-                                        CssSettings.IndentSize = 4;
+                                    JSSettings.Indent =
+                                        CssSettings.Indent = "    ";
                                 }
                                 else
                                 {
@@ -1196,7 +1196,7 @@ namespace NUglify
                                                         // same value for JS and CSS.
                                                         // don't need to check for negative, because the tryparse method above does NOT
                                                         // allow for a sign -- no sign, no negative.
-                                                        JSSettings.IndentSize = CssSettings.IndentSize = indentSize;
+                                                        JSSettings.Indent = CssSettings.Indent = new string(' ', indentSize);
                                                     }
                                                     // else use char provided
                                                     else
@@ -1207,8 +1207,8 @@ namespace NUglify
                                                 else
                                                 {
                                                     // default of 4
-                                                    JSSettings.IndentSize =
-                                                        CssSettings.IndentSize = 4;
+                                                    JSSettings.Indent =
+                                                        CssSettings.Indent = "    ";
                                                 }
                                             }
                                         }
@@ -1506,7 +1506,7 @@ namespace NUglify
                                         // same value for JS and CSS.
                                         // don't need to check for negative, because the tryparse method above does NOT
                                         // allow for a sign -- no sign, no negative.
-                                        JSSettings.IndentSize = CssSettings.IndentSize = indentSize;
+                                        JSSettings.Indent = CssSettings.Indent = new string(' ', indentSize);
                                     }
                                     else 
                                     {
