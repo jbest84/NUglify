@@ -102,9 +102,16 @@ namespace NUglify.Tests.JavaScript
         public void Bug139_A()
         {
             // previously these would throw exceptions because the closing backtick was skipped, creating an invalid ast
-            // manually define cr and lfs to be sure we dont have platform sillynes
+            // manually define cr and lfs to be sure we dont have platform silliness
 
-            var uglifyResult = Uglify.Js("var testString = `"+ (char)13 +@"`;
+
+            var uglifyResult = Uglify.Js("var testString = `" + (char)10 + @"`;
+            testString += `} async init(){ }`;");
+            Assert.That(uglifyResult.Code, Is.EqualTo("var testString=`\n`+`} async init(){ }`"));
+
+            // CR
+            uglifyResult = Uglify.Js("var testString = `"+ (char)13 +@"`;
+
             testString += `} async init(){ }`;");
             Assert.That(uglifyResult.Code, Is.EqualTo("var testString=`\r`+`} async init(){ }`"));
 
@@ -204,20 +211,19 @@ namespace NUglify.Tests.JavaScript
 		        }
 	        }
 
-	        var expected = @"define(""moment"",[],function(){return function(){}({""./node_modules/moment/locale sync recursive ^\\.\\/.*$"":function(){}})})
-//# sourceMappingURL=C:\some\other\path\to\map
-";
-	        Assert.That(result.Code, Is.EqualTo(expected));
+	        var expected = "define(\"moment\",[],function(){return function(){}({\"./node_modules/moment/locale sync recursive ^\\\\.\\\\/.*$\":function(){}})})\n//# sourceMappingURL=C:\\some\\other\\path\\to\\map\n";
+	        Assert.That(result.Code.Replace("\r\n", "\n"), Is.EqualTo(expected));
 
 	        var actual = builder.ToString().Replace("\r\n", "\n");
-	        Assert.That(actual, Is.EqualTo(@"{
+	        var expectedMap = @"{
 ""version"":3,
 ""file"":""C:\\some\\long\\path\\to\\js"",
 ""mappings"":""AAAAA,MAAM,CAAC,QAAQ,CAAE,CAAA,CAAE,CAAE,QAAQ,CAAA,CAAG,CAAE,OAAQ,QAAQ,CAAA,CAAU,EAC5D,CAAC,CACM,wDAAwD,CAEvDC,QAAQ,CAAA,CAAuC,EAHtD,CAAD,CADgC,CAA1B"",
 ""sources"":[""C:\\some\\path\\to\\output\\js""],
 ""names"":[""define"",""./node_modules/moment/locale sync recursive ^\\.\\/.*$""]
 }
-"));
+".Replace("\r\n", "\n");
+	        Assert.That(actual, Is.EqualTo(expectedMap));
         }
 
         [Test]

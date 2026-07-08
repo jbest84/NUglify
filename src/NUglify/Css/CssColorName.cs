@@ -258,9 +258,11 @@ namespace NUglify.Css
 
             static Dictionary<string, string> Create(ColorSlice singleton)
             {
-                return (from colorName in singleton._colorArray
-                        where colorName.Hex.Length > colorName.Name.Length
-                        select colorName).DistinctBy(c => c.Hex).ToDictionary(p => p.Hex, p => p.Name);
+                return NUglifyExtensions.DistinctBy(
+                    from colorName in singleton._colorArray
+                    where colorName.Hex.Length > colorName.Name.Length
+                    select colorName,
+                    c => c.Hex).ToDictionary(p => p.Hex, p => p.Name);
             }
         }
 
@@ -270,9 +272,11 @@ namespace NUglify.Css
 
             static Dictionary<string, string> Create(ColorSlice singleton)
             {
-                return (from colorName in singleton._colorArray
-                        where colorName.Strict == true && colorName.Hex.Length > colorName.Name.Length
-                        select colorName).DistinctBy(c => c.Hex).ToDictionary(p => p.Hex, p => p.Name);
+                return NUglifyExtensions.DistinctBy(
+                    from colorName in singleton._colorArray
+                    where colorName.Strict == true && colorName.Hex.Length > colorName.Name.Length
+                    select colorName,
+                    c => c.Hex).ToDictionary(p => p.Hex, p => p.Name);
             }
         }
 
@@ -282,9 +286,11 @@ namespace NUglify.Css
 
             static Dictionary<string, string> Create(ColorSlice singleton)
             {
-                return (from colorName in singleton._colorArray
-                        where colorName.Name.Length > colorName.Hex.Length
-                        select colorName).DistinctBy(c => c.Name).ToDictionary(p => p.Name, p => p.Hex);
+                return NUglifyExtensions.DistinctBy(
+                    from colorName in singleton._colorArray
+                    where colorName.Name.Length > colorName.Hex.Length
+                    select colorName,
+                    c => c.Name).ToDictionary(p => p.Name, p => p.Hex);
             }
         }
 
@@ -294,9 +300,11 @@ namespace NUglify.Css
 
             static Dictionary<string, string> Create(ColorSlice singleton)
             {
-                return (from colorName in singleton._colorArray
-                        where (colorName.Strict == true && colorName.Name.Length > colorName.Hex.Length) || colorName.Strict == false
-                        select colorName).DistinctBy(c => c.Name).ToDictionary(p => p.Name, p => p.Hex);
+                return NUglifyExtensions.DistinctBy(
+                    from colorName in singleton._colorArray
+                    where (colorName.Strict == true && colorName.Name.Length > colorName.Hex.Length) || colorName.Strict == false
+                    select colorName,
+                    c => c.Name).ToDictionary(p => p.Name, p => p.Hex);
             }
         }
 
@@ -306,8 +314,10 @@ namespace NUglify.Css
 
             static Dictionary<string, string> Create(ColorSlice singleton)
             {
-                return (from colorName in singleton._colorArray
-                        select colorName).DistinctBy(c => c.Name).ToDictionary(p => p.Name, p => p.Hex);
+                return NUglifyExtensions.DistinctBy(
+                    from colorName in singleton._colorArray
+                    select colorName,
+                    c => c.Name).ToDictionary(p => p.Name, p => p.Hex);
             }
         }
 

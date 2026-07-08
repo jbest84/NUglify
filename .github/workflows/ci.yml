@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore NUglify.slnx
+
+      - name: Build
+        run: dotnet build NUglify.slnx -c Release --no-restore -p:UseSharedCompilation=false
+
+      - name: Test
+        run: dotnet test src\NUglify.Tests\NUglify.Tests.csproj -c Release --no-build -p:UseSharedCompilation=false
+
+      - name: Pack
+        run: >
+          dotnet pack src\NUglify\NUglify.csproj
+          -c Release
+          -o artifacts\packages
+          --no-build
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: nupkg
+          path: artifacts/packages/*
+          if-no-files-found: error
