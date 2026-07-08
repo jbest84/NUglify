@@ -79,8 +79,18 @@ jobs:
       - name: Publish package to NuGet.org
         if: env.NUGET_API_KEY != ''
         shell: pwsh
-        run: >
-          dotnet nuget push "artifacts/packages/*.nupkg"
-          --api-key "$env:NUGET_API_KEY"
-          --source "https://api.nuget.org/v3/index.json"
-          --skip-duplicate
+        run: |
+          $packages = @(Get-ChildItem 'artifacts/packages/*.nupkg' -File)
+
+          if ($packages.Count -eq 0) {
+            throw "No .nupkg files found in artifacts/packages"
+          }
+
+          if ($packages.Count -ne 1) {
+            throw "Expected exactly one .nupkg file in artifacts/packages but found $($packages.Count)"
+          }
+
+          dotnet nuget push $packages[0].FullName `
+            --api-key "$env:NUGET_API_KEY" `
+            --source "https://api.nuget.org/v3/index.json" `
+            --skip-duplicate
