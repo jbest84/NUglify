@@ -1,0 +1,13 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/NUglify.Tasks/NUglify.Tasks.csproj" />
+    <Project Path="src/NUglify.Tests/NUglify.Tests.csproj" />
+    <Project Path="src/NUglifyApp/NUglifyApp.csproj" />
+  </Folder>
+  <Project Path="src/NUglify/NUglify.csproj" />
+</Solution>

@@ -1,4 +1,4 @@
-# NUglify [![Build status](https://ci.appveyor.com/api/projects/status/q27y1mi2jf389vyp?svg=true)](https://ci.appveyor.com/project/jbest84/nuglify) [![NuGet](https://img.shields.io/nuget/v/NUglify.svg)](https://www.nuget.org/packages/NUglify/)
+# NUglify [![CI](https://github.com/jbest84/NUglify/actions/workflows/ci.yml/badge.svg)](https://github.com/jbest84/NUglify/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/NUglify.svg)](https://www.nuget.org/packages/NUglify/)
 
 
 <img align="right" width="160px" height="160px" src="images/nuglify.png">

@@ -2,21 +2,21 @@
 
   <PropertyGroup>
     <Description>NUglify provides minification and compression methods for CSS, JavaScript and HTML files for .NET</Description>
-    <Copyright>Alexandre Mutel;Andrew Bullock</Copyright>
+    <Copyright>Alexandre Mutel;Andrew Bullock;Jason Best</Copyright>
     <AssemblyTitle>NUglify</AssemblyTitle>
     <NeutralLanguage>en-US</NeutralLanguage>
     <VersionPrefix>1.5.14</VersionPrefix>
-    <Authors>Ron Logan;Alexandre Mutel;Andrew Bullock</Authors>
-    <TargetFrameworks>net35;net40;netstandard1.3;netstandard2.0;net50</TargetFrameworks>
+    <Authors>Ron Logan;Alexandre Mutel;Andrew Bullock;Jason Best</Authors>
+    <TargetFrameworks>net40;netstandard1.3;netstandard2.0;net50</TargetFrameworks>
     <AssemblyName>NUglify</AssemblyName>
     <PackageId>NUglify</PackageId>
     <PackageTags>CSS;JavaScript;minify;crunch;uglify;Compress;HTML;htmlminifier;htmlcompressor</PackageTags>
-    <PackageReleaseNotes>https://github.com/trullock/NUglify/blob/master/changelog.md</PackageReleaseNotes>
+    <PackageReleaseNotes>https://github.com/jbest84/NUglify/blob/master/changelog.md</PackageReleaseNotes>
     <PackageIcon>nuglify.png</PackageIcon>
-    <PackageProjectUrl>https://github.com/trullock/NUglify</PackageProjectUrl>
-    <PackageLicenseUrl>https://github.com/trullock/NUglify/blob/master/license.txt</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/jbest84/NUglify</PackageProjectUrl>
+    <PackageLicenseUrl>https://github.com/jbest84/NUglify/blob/master/license.txt</PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>git://github.com/trullock/NUglify</RepositoryUrl>
+    <RepositoryUrl>https://github.com/jbest84/NUglify</RepositoryUrl>
     <NetStandardImplicitPackageVersion Condition=" '$(TargetFramework)' == 'netstandard1.3' ">1.6.0</NetStandardImplicitPackageVersion>
     <Version>1.21.17</Version>
     <PackageLicenseExpression></PackageLicenseExpression>
@@ -27,13 +27,6 @@
     <EmbeddedResource Include="*.resx;Css\*.resx;JavaScript\*.resx" Exclude="bin\**;obj\**;**\*.xproj;packages\**;@(EmbeddedResource)" />
   </ItemGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net35' ">
-    <Reference Include="mscorlib" />
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml" />
-  </ItemGroup>
-
   <ItemGroup Condition=" '$(TargetFramework)' == 'net40' ">
     <Reference Include="mscorlib" />
     <Reference Include="System" />
@@ -41,10 +34,6 @@
     <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
-
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'net35' ">
-    <DefineConstants>$(DefineConstants);NET_35;NETPRE45</DefineConstants>
-  </PropertyGroup>
 
   <PropertyGroup Condition=" '$(TargetFramework)' == 'net40' ">
     <DefineConstants>$(DefineConstants);NETPRE45</DefineConstants>
