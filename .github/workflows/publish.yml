@@ -32,13 +32,19 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $suffix = ""
+          [xml]$project = Get-Content 'src\NUglify\NUglify.csproj'
+          $baseVersion = $project.Project.PropertyGroup.Version
+          $packageVersion = $baseVersion
 
           if ("${{ github.ref_name }}" -eq "latest") {
             $suffix = "pre{0:000}" -f [int]${{ github.run_number }}
+            $packageVersion = "$baseVersion-$suffix"
+          }
+          elseif ("${{ github.ref_name }}" -like "v*") {
+            $packageVersion = "${{ github.ref_name }}".Substring(1)
           }
 
-          "suffix=$suffix" >> $env:GITHUB_OUTPUT
+          "package_version=$packageVersion" >> $env:GITHUB_OUTPUT
 
       - name: Restore
         run: dotnet restore NUglify.slnx
@@ -57,12 +63,9 @@ jobs:
             'src\NUglify\NUglify.csproj',
             '-c', 'Release',
             '-o', 'artifacts\packages',
-            '--no-build'
+            '--no-build',
+            "/p:PackageVersion=${{ steps.version.outputs.package_version }}"
           )
-
-          if ("${{ steps.version.outputs.suffix }}") {
-            $arguments += "/p:VersionSuffix=${{ steps.version.outputs.suffix }}"
-          }
 
           dotnet @arguments
 

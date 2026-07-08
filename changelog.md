@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.21.18 (8 July 2026)
+- Added support for CSS Media Queries Level 4.
+- Fixed `let`/`const` scope handling for `InvertIfReturn`.
+- Fixed binding default values scope handling.
+
  ## v1.21.17 (29 July 2025)
  - Fixed bug with import, export and with
 

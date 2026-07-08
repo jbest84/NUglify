@@ -5,7 +5,6 @@
     <Copyright>Alexandre Mutel;Andrew Bullock;Jason Best</Copyright>
     <AssemblyTitle>NUglify</AssemblyTitle>
     <NeutralLanguage>en-US</NeutralLanguage>
-    <VersionPrefix>1.5.14</VersionPrefix>
     <Authors>Ron Logan;Alexandre Mutel;Andrew Bullock;Jason Best</Authors>
     <TargetFrameworks>net40;netstandard2.0;net10.0</TargetFrameworks>
     <AssemblyName>NUglify</AssemblyName>
@@ -18,7 +17,7 @@
     <PackageReadmeFile>readme.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/jbest84/NUglify</RepositoryUrl>
-    <Version>1.21.17</Version>
+    <Version>1.21.18</Version>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
