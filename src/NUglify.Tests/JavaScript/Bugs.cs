@@ -104,12 +104,14 @@ namespace NUglify.Tests.JavaScript
             // previously these would throw exceptions because the closing backtick was skipped, creating an invalid ast
             // manually define cr and lfs to be sure we dont have platform silliness
 
+
             var uglifyResult = Uglify.Js("var testString = `" + (char)10 + @"`;
             testString += `} async init(){ }`;");
             Assert.That(uglifyResult.Code, Is.EqualTo("var testString=`\n`+`} async init(){ }`"));
 
             // CR
             uglifyResult = Uglify.Js("var testString = `"+ (char)13 +@"`;
+
             testString += `} async init(){ }`;");
             Assert.That(uglifyResult.Code, Is.EqualTo("var testString=`\r`+`} async init(){ }`"));
 
@@ -382,6 +384,20 @@ namespace NUglify.Tests.JavaScript
         }
 
         [Test]
+        public void Bug389()
+        {
+            AssertMinified(@"
+function init() {
+    if (window.a == null) return;
+    let sel = 1;
+    function desel() {
+        sel = -1;
+    }
+    desel();
+}", "function init(){function t(){n=-1}if(window.a==null)return;let n=1;t()}");
+        }
+
+        [Test]
         public void Bug391()
         {
 	        TestHelper.Instance.RunTest("-rename:all");
@@ -435,6 +451,14 @@ namespace NUglify.Tests.JavaScript
             result = Uglify.Js("function make(dep) { const [ value = dep ] = []; return value; }");
             Assert.That(result.HasErrors, Is.False);
             Assert.That(result.Code, Is.EqualTo("function make(n){const[t=n]=[];return t}"));
+        }
+
+        private void AssertMinified(string source, string expected)
+        {
+            var result = Uglify.Js(source);
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo(expected));
         }
     }
 }
