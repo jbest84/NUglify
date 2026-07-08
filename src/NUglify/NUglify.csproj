@@ -14,11 +14,11 @@
     <PackageReleaseNotes>https://github.com/jbest84/NUglify/blob/master/changelog.md</PackageReleaseNotes>
     <PackageIcon>nuglify.png</PackageIcon>
     <PackageProjectUrl>https://github.com/jbest84/NUglify</PackageProjectUrl>
-    <PackageLicenseUrl>https://github.com/jbest84/NUglify/blob/master/license.txt</PackageLicenseUrl>
+    <PackageLicenseFile>license.txt</PackageLicenseFile>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/jbest84/NUglify</RepositoryUrl>
     <Version>1.21.17</Version>
-    <PackageLicenseExpression></PackageLicenseExpression>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
@@ -52,6 +52,8 @@
 
   <ItemGroup>
     <None Include="..\..\images\nuglify.png" Link="nuglify.png" Pack="true" PackagePath="" />
+    <None Include="..\..\license.txt" Link="license.txt" Pack="true" PackagePath="" />
+    <None Include="..\..\readme.md" Link="readme.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
 </Project>
