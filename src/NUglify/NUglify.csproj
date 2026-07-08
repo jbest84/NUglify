@@ -7,7 +7,7 @@
     <NeutralLanguage>en-US</NeutralLanguage>
     <VersionPrefix>1.5.14</VersionPrefix>
     <Authors>Ron Logan;Alexandre Mutel;Andrew Bullock;Jason Best</Authors>
-    <TargetFrameworks>net40;netstandard1.3;netstandard2.0;net50</TargetFrameworks>
+    <TargetFrameworks>net40;netstandard2.0;net10.0</TargetFrameworks>
     <AssemblyName>NUglify</AssemblyName>
     <PackageId>NUglify</PackageId>
     <PackageTags>CSS;JavaScript;minify;crunch;uglify;Compress;HTML;htmlminifier;htmlcompressor</PackageTags>
@@ -17,7 +17,6 @@
     <PackageLicenseUrl>https://github.com/jbest84/NUglify/blob/master/license.txt</PackageLicenseUrl>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/jbest84/NUglify</RepositoryUrl>
-    <NetStandardImplicitPackageVersion Condition=" '$(TargetFramework)' == 'netstandard1.3' ">1.6.0</NetStandardImplicitPackageVersion>
     <Version>1.21.17</Version>
     <PackageLicenseExpression></PackageLicenseExpression>
     <LangVersion>latest</LangVersion>
@@ -39,10 +38,6 @@
     <DefineConstants>$(DefineConstants);NETPRE45</DefineConstants>
   </PropertyGroup>
 
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard1.3' ">
-    <DefineConstants>$(DefineConstants);CORE</DefineConstants>
-  </PropertyGroup>
-
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
@@ -54,10 +49,6 @@
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
   </PropertyGroup>
-
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard1.3' ">
-    <PackageReference Include="System.Security.Cryptography.Algorithms" Version="4.2.0" />
-  </ItemGroup>
 
   <ItemGroup>
     <None Include="..\..\images\nuglify.png" Link="nuglify.png" Pack="true" PackagePath="" />
