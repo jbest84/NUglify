@@ -4,7 +4,7 @@
 
 using System;
 using System.IO;
-using System.Net;
+using System.Net.Http;
 using BenchmarkDotNet.Attributes;
 using NUglify.Html;
 using ZetaProducerHtmlCompressor;
@@ -13,6 +13,8 @@ namespace NUglify.Benchmarks
 {
     public class BenchMinifier
     {
+        private static readonly HttpClient s_httpClient = new HttpClient();
+
 	    readonly string html;
 
         public BenchMinifier()
@@ -21,10 +23,7 @@ namespace NUglify.Benchmarks
             if (!File.Exists(htmlFile))
             {
                 Console.WriteLine("Downloading https://html.spec.whatwg.org/");
-                using (var webClient = new WebClient())
-                {
-                    html = webClient.DownloadString("https://html.spec.whatwg.org/");
-                }
+                html = s_httpClient.GetStringAsync("https://html.spec.whatwg.org/").GetAwaiter().GetResult();
                 File.WriteAllText(htmlFile, html);
             }
             else
