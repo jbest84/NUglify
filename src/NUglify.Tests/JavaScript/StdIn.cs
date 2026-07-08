@@ -16,8 +16,6 @@ namespace NUglify.Tests.JavaScript
         {
         }
 
-        TestContext testContextInstance;
-
         public static string ExpectedFolder { get; private set; }
         public static string InputFolder { get; private set; }
         public static string OutputFolder { get; private set; }

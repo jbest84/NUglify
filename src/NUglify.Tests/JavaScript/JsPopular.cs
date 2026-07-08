@@ -3,7 +3,7 @@
 // See the license.txt file in the project root for more information.
 
 using System;
-using System.Net;
+using System.Net.Http;
 using NUglify.JavaScript;
 using NUnit.Framework;
 
@@ -16,6 +16,8 @@ namespace NUglify.Tests.JavaScript
     [TestFixture]
     public class JsPopular
     {
+        private static readonly HttpClient s_httpClient = new HttpClient();
+
         [Test]
         public void TestJQuery()
         {
@@ -57,8 +59,7 @@ namespace NUglify.Tests.JavaScript
         static void AssertCompile(string url, string file)
         {
             // https://ajax.googleapis.com/ajax/libs/angularjs/1.5.3/angular.js
-            var client = new WebClient();
-            var jqueryText = client.DownloadString(url);
+            var jqueryText = s_httpClient.GetStringAsync(url).GetAwaiter().GetResult();
             var result = Uglify.Js(jqueryText, file, new CodeSettings()
             {
                 PreserveImportantComments = false,
