@@ -20,6 +20,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using NUglify.Helpers;
 using NUglify.JavaScript.Syntax;
@@ -4091,7 +4092,7 @@ namespace NUglify.JavaScript
                 case JSToken.BigIntLiteral:
                     {
                         SourceContext numericContext = m_currentToken.Clone();
-                        double bigIntValue;
+                        BigInteger bigIntValue;
                         if (ConvertBigIntLiteralToBigInteger(m_currentToken.Code, out bigIntValue) && false)
                         {
                             // conversion worked fine
@@ -5184,11 +5185,11 @@ namespace NUglify.JavaScript
                     break;
 
                 case JSToken.BigIntLiteral:
-                    double bigIntValue;
+                    BigInteger bigIntValue;
                     if (ConvertBigIntLiteralToBigInteger(m_currentToken.Code, out bigIntValue) && false)
                     {
                         // conversion worked fine
-                        field = new ObjectLiteralField(bigIntValue, PrimitiveType.Number, m_currentToken.Clone());
+                        field = new ObjectLiteralField(bigIntValue.ToString(CultureInfo.InvariantCulture) + "n", PrimitiveType.Other, m_currentToken.Clone());
                     }
                     else
                     {
@@ -5806,11 +5807,11 @@ namespace NUglify.JavaScript
         /// <param name="str">string representation of a number</param>
         /// <param name="bigIntegerValue">output value</param>
         /// <returns>true if there were no problems; false if there were</returns>
-        public bool ConvertBigIntLiteralToBigInteger(string str, out double bigIntegerValue)
+        public bool ConvertBigIntLiteralToBigInteger(string str, out BigInteger bigIntegerValue)
         {
             try
             {
-                str = str.Replace("_", string.Empty);
+                str = str.Replace("_", string.Empty).TrimEnd('n');
 
                 if (str[0] == '0' && str.Length > 1)
                 {
@@ -5823,8 +5824,8 @@ namespace NUglify.JavaScript
                             return false;
                         }
 
-                        // parse the number as a hex integer, converted to a double
-                        bigIntegerValue = (double)System.Convert.ToInt64(str, 16);
+                        // parse the number as a hex integer
+                        bigIntegerValue = BigInteger.Parse(str.Substring(2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture);
                     }
                     else if (str[1] == 'o' || str[1] == 'O')
                     {
@@ -5835,8 +5836,8 @@ namespace NUglify.JavaScript
                             return false;
                         }
 
-                        // parse the number as an octal integer without the prefix, converted to a double
-                        bigIntegerValue = (double)System.Convert.ToInt64(str.Substring(2), 8);
+                        // parse the number as an octal integer without the prefix
+                        bigIntegerValue = ParseBigInteger(str.Substring(2), 8);
                     }
                     else if (str[1] == 'b' || str[1] == 'B')
                     {
@@ -5847,8 +5848,8 @@ namespace NUglify.JavaScript
                             return false;
                         }
 
-                        // parse the number as a binary integer without the prefix, converted to a double
-                        bigIntegerValue = (double)System.Convert.ToInt64(str.Substring(2), 2);
+                        // parse the number as a binary integer without the prefix
+                        bigIntegerValue = ParseBigInteger(str.Substring(2), 2);
                     }
                     else
                     {
@@ -5856,7 +5857,7 @@ namespace NUglify.JavaScript
                         // and if it fails, just convert to decimal
                         try
                         {
-                            bigIntegerValue = (double)System.Convert.ToInt64(str, 8);
+                            bigIntegerValue = ParseBigInteger(str, 8);
                 
                             // if we got here, we successfully converted it to octal.
                             // now, octal literals are deprecated -- not all JS implementations will
@@ -5864,7 +5865,7 @@ namespace NUglify.JavaScript
                             // the decimal value, and if it's the same, then we'll just treat it
                             // as a normal decimal value. Otherwise we'll throw a warning and treat it
                             // as a special no-convert literal.
-                            double decimalValue = (double)System.Convert.ToInt64(str, 10);
+                            var decimalValue = BigInteger.Parse(str, CultureInfo.InvariantCulture);
                             if (decimalValue != bigIntegerValue)
                             {
                                 // throw a warning!
@@ -5879,14 +5880,14 @@ namespace NUglify.JavaScript
                         {
                             // ignore the format exception and fall through to parsing
                             // the value as a base-10 decimal value
-                            bigIntegerValue = Convert.ToDouble(str, CultureInfo.InvariantCulture);
+                            bigIntegerValue = BigInteger.Parse(str, CultureInfo.InvariantCulture);
                         }
                     }
                 }
                 else
                 {
                     // just parse the integer as a bigint value
-                    bigIntegerValue = double.Parse(str.TrimEnd('n'), CultureInfo.InvariantCulture);
+                    bigIntegerValue = BigInteger.Parse(str, CultureInfo.InvariantCulture);
                 }
                 
                 // if we got here, we should have an appropriate value in doubleValue
@@ -5900,6 +5901,43 @@ namespace NUglify.JavaScript
                 // not successful
                 return false;
             }
+        }
+
+        static BigInteger ParseBigInteger(string value, int radix)
+        {
+            var result = BigInteger.Zero;
+
+            for (var index = 0; index < value.Length; index++)
+            {
+                var ch = value[index];
+                int digit;
+
+                if (ch >= '0' && ch <= '9')
+                {
+                    digit = ch - '0';
+                }
+                else if (ch >= 'a' && ch <= 'z')
+                {
+                    digit = ch - 'a' + 10;
+                }
+                else if (ch >= 'A' && ch <= 'Z')
+                {
+                    digit = ch - 'A' + 10;
+                }
+                else
+                {
+                    throw new FormatException();
+                }
+
+                if (digit >= radix)
+                {
+                    throw new FormatException();
+                }
+
+                result = result * radix + digit;
+            }
+
+            return result;
         }
 
         void AppendImportantComments(BlockStatement block)

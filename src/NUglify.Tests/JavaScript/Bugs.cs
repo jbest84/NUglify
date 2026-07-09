@@ -139,6 +139,25 @@ namespace NUglify.Tests.JavaScript
         }
 
         [Test]
+        public void Bug158()
+        {
+            AssertMinified(@"
+let TryParseLong = function (str, defaultValue) {
+    var retValue = defaultValue;
+    if (str !== null) {
+        if (str.length > 0 && str.length <= 19) {
+            if (!isNaN(str)) {
+                if (BigInt(str) < BigInt(""9223372036854775807"")) {
+                    retValue = BigInt(str);
+                }
+                console.log(retValue);
+            }
+        }
+    }
+};", "let TryParseLong=function(n,t){var i=t;n!==null&&n.length>0&&n.length<=19&&(isNaN(n)||(BigInt(n)<9223372036854775807n&&(i=BigInt(n)),console.log(i)))}");
+        }
+
+        [Test]
         public void Bug159()
         {
 	        TestHelper.Instance.RunTest("-rename:all");
