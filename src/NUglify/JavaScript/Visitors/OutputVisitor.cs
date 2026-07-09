@@ -2744,6 +2744,16 @@ namespace NUglify.JavaScript.Visitors
         {
             if (node != null)
             {
+                if (CanUseImplicitObjectPropertyName(node))
+                {
+                    if (node.Value != null)
+                    {
+                        AcceptNodeWithParens(node.Value, node.Value.Precedence == OperatorPrecedence.Comma);
+                    }
+
+                    return;
+                }
+
                 // getter/setter will be handled by the value, which is the function object
                 if (node.Name != null && !(node.Name is GetterSetter))
                 {
@@ -2755,6 +2765,40 @@ namespace NUglify.JavaScript.Visitors
                 {
                     AcceptNodeWithParens(node.Value, node.Value.Precedence == OperatorPrecedence.Comma);
                 }
+            }
+        }
+
+        bool CanUseImplicitObjectPropertyName(ObjectLiteralProperty node)
+        {
+            if (node?.Name == null || !node.Name.IsIdentifier)
+            {
+                return false;
+            }
+
+            var emittedName = GetImplicitObjectPropertyValueName(node.Value);
+            return !string.IsNullOrEmpty(emittedName)
+                && string.Equals(node.Name.Name, emittedName, StringComparison.Ordinal);
+        }
+
+        string GetImplicitObjectPropertyValueName(AstNode value)
+        {
+            switch (value)
+            {
+                case BindingIdentifier bindingIdentifier:
+                    return bindingIdentifier.VariableField != null
+                        ? bindingIdentifier.VariableField.ToString()
+                        : bindingIdentifier.Name;
+
+                case LookupExpression lookup:
+                    return lookup.VariableField != null
+                        ? lookup.VariableField.ToString()
+                        : lookup.Name;
+
+                case InitializerNode initializer:
+                    return GetImplicitObjectPropertyValueName(initializer.Binding);
+
+                default:
+                    return null;
             }
         }
 
