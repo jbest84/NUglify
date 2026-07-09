@@ -301,6 +301,58 @@ let TryParseLong = function (str, defaultValue) {
         }
 
         [Test]
+        public void Bug261()
+        {
+            // block-scoped object destructuring should preserve the property name and
+            // only rename the bound variable when a default value is present
+            AssertMinified(@"
+{
+    const opts = { environment: 'dev' };
+    const { environment = 'prod' } = opts;
+}", "{const{environment:n=\"prod\"}={environment:\"dev\"}}");
+
+            // top-level destructuring already behaves, and this locks in that baseline
+            AssertMinified(@"
+const opts = { environment: 'dev' };
+const { environment = 'prod' } = opts;
+", "const opts={environment:\"dev\"},{environment=\"prod\"}=opts");
+
+            // top-level const bindings are not auto-renamed, so later references should still
+            // use the original binding name while keeping shorthand output intact
+            AssertMinified(@"
+const opts = { environment: 'dev' };
+const { environment = 'prod' } = opts;
+console.log(environment);
+", "const opts={environment:\"dev\"},{environment=\"prod\"}=opts;console.log(environment)");
+
+            // block-scoped bindings can be renamed, and later references must stay in sync with
+            // the renamed local while preserving the original property name
+            AssertMinified(@"
+{
+    const opts = { environment: 'dev' };
+    const { environment = 'prod' } = opts;
+    console.log(environment);
+}", "{const{environment:n=\"prod\"}={environment:\"dev\"};console.log(n)}");
+
+            // constructor parameter destructuring should keep property names intact and
+            // only rename the local bindings introduced by the pattern
+            AssertMinified(@"
+class TestClass {
+    constructor({
+        property1,
+        property2 = 'value2',
+        property3 = 1,
+        property4 = false
+    }) {
+        const test1 = property1 || 123;
+        const test2 = `foo_${property2}`;
+        const test3 = property3 * 10;
+        const test4 = property4 ? 1 : 2;
+    }
+}", "class TestClass{constructor({property1:n,property2:t=\"value2\",property3:i=1,property4:r=false}){const u=n||123,f=`foo_${t}`,e=i*10,o=r?1:2}}");
+        }
+
+        [Test]
         public void Bug264()
         {
 	        TestHelper.Instance.RunErrorTest("-rename:all");
