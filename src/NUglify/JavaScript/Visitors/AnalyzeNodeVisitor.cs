@@ -18,6 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Numerics;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using NUglify.Helpers;
@@ -1904,15 +1905,15 @@ namespace NUglify.JavaScript.Visitors
                         {
                             if (constArg.Value is string constArgStringValue)
                             {
-                                double bigInt;
+                                BigInteger bigInt;
                                 if (m_parser.ConvertBigIntLiteralToBigInteger(constArgStringValue, out bigInt))
-                                    node.Parent.ReplaceChild(node, new ConstantWrapper((long)bigInt + "n", PrimitiveType.Other, node.Arguments[0].Context));
+                                    node.Parent.ReplaceChild(node, new ConstantWrapper(bigInt.ToString(CultureInfo.InvariantCulture) + "n", PrimitiveType.Other, node.Arguments[0].Context));
                                 
                                 return;
                             }
 
-                            var constArgValueLong = (long)(double)constArg.Value;
-                            node.Parent.ReplaceChild(node, new ConstantWrapper(constArgValueLong + "n", PrimitiveType.Other, node.Arguments[0].Context));
+                            var constArgValueBigInt = new BigInteger((double)constArg.Value);
+                            node.Parent.ReplaceChild(node, new ConstantWrapper(constArgValueBigInt.ToString(CultureInfo.InvariantCulture) + "n", PrimitiveType.Other, node.Arguments[0].Context));
                         }
                     }
                 }
