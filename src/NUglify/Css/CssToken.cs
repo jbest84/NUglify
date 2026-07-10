@@ -190,6 +190,12 @@ namespace NUglify.Css
         Fraction,
         Of,
 
+        // CSS Nesting (W3C CSS Nesting Module Level 1)
+        NestingSelector,
+        ContainerSymbol,
+        LayerSymbol,
+        ScopeSymbol,
+
         // CSS3 paged media at-symbols
         TopLeftCornerSymbol,
         TopLeftSymbol,

@@ -20,10 +20,13 @@ namespace NUglify.Tests.Html
 
         protected void equal(string result, string expected, params string[] expectedMessages)
         {
+            var normalizedResult = NormalizeLineEndings(result);
+            var normalizedExpected = NormalizeLineEndings(expected);
+
             // Print diagnostic only if there will be an error
             var resultMessages = messages?.Select(t => t.ToString()).ToArray() ?? new string[] { };
 
-            if (expected != result || !((IStructuralEquatable)expectedMessages).Equals(resultMessages, EqualityComparer<string>.Default))
+            if (normalizedExpected != normalizedResult || !((IStructuralEquatable)expectedMessages).Equals(resultMessages, EqualityComparer<string>.Default))
             {
                 Console.Out.WriteLine();
                 Console.Out.WriteLine("*******************");
@@ -50,7 +53,7 @@ namespace NUglify.Tests.Html
                 Console.Out.WriteLine(expected);
             }
 
-            Assert.That(result, Is.EqualTo(expected));
+            Assert.That(normalizedResult, Is.EqualTo(normalizedExpected));
             Assert.That(resultMessages, Is.EqualTo(expectedMessages));
         }
 
@@ -62,6 +65,11 @@ namespace NUglify.Tests.Html
             var text = result.Code;
             messages = result.Errors;
             return text;
+        }
+
+        static string NormalizeLineEndings(string text)
+        {
+            return text?.Replace("\r\n", "\n").Replace("\r", "\n");
         }
     }
 }

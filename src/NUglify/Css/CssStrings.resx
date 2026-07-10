@@ -327,4 +327,7 @@
   <data name="UnexpectedCharset" xml:space="preserve">
     <value>@charset must be very first token in file</value>
   </data>
+  <data name="UnexpectedNestingSelector" xml:space="preserve">
+    <value>Unexpected nesting selector '&amp;'; the nesting selector is not permitted in this position, found '{0}'</value>
+  </data>
 </root>

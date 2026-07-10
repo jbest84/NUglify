@@ -205,6 +205,15 @@ namespace NUglify.Css
                         token = ScanHash();
                         break;
 
+                    case '&':
+                        // CSS Nesting selector. Consume exactly one '&' and emit a single
+                        // NestingSelector token using the current context. String and comment
+                        // contexts are consumed by ScanString/ScanComment before reaching here,
+                        // so an '&' inside a literal is never tokenized as a nesting selector.
+                        NextChar();
+                        token = new CssToken(TokenType.NestingSelector, "&", m_context);
+                        break;
+
                     case '@':
                         token = ScanAtKeyword();
                         break;
@@ -723,6 +732,18 @@ namespace NUglify.Css
 
                     case "MEDIA":
                         tokenType = TokenType.MediaSymbol;
+                        break;
+
+                    case "CONTAINER":
+                        tokenType = TokenType.ContainerSymbol;
+                        break;
+
+                    case "LAYER":
+                        tokenType = TokenType.LayerSymbol;
+                        break;
+
+                    case "SCOPE":
+                        tokenType = TokenType.ScopeSymbol;
                         break;
 
                     case "FONT-FACE":

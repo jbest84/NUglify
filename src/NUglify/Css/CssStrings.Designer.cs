@@ -620,6 +620,15 @@ namespace NUglify.Css {
         }
         
         /// <summary>
+        ///    Looks up a localized string similar to Unexpected nesting selector &apos;&amp;&apos;; the nesting selector is not permitted in this position, found &apos;{0}&apos;.
+        /// </summary>
+        internal static string UnexpectedNestingSelector {
+            get {
+                return ResourceManager.GetString("UnexpectedNestingSelector", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///    Looks up a localized string similar to Unexpected number character: {0}.
         /// </summary>
         internal static string UnexpectedNumberCharacter {
