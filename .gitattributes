@@ -1,0 +1,28 @@
+# Normalize line endings.
+# Text files are stored with LF in the repository; Git converts to the
+# platform-native ending on checkout when core.autocrlf is enabled. This
+# prevents stray CRLF from being committed into blobs (the cause of spurious
+# whitespace-only diffs on files that get re-saved).
+* text=auto
+
+# Explicit handling for the source and text files in this repo.
+*.cs      text
+*.csproj  text
+*.slnx    text
+*.sln     text
+*.md      text
+*.resx    text
+*.yml     text
+*.yaml    text
+*.json    text
+*.txt     text
+*.config  text
+*.props   text
+*.targets text
+
+# Binary assets that must never be line-ending converted.
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary

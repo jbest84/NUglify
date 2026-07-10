@@ -50,6 +50,22 @@ namespace NUglify.Css
         bool m_encounteredNewLine;
         Stack<StringBuilder> m_builders;
 
+        // Bounded token look-ahead buffer used by the block-body classifier to disambiguate
+        // a declaration (prop:value) from a nested style rule (selector { ... }) without
+        // disturbing the current token. When non-null, NextToken/NextRawToken/NextSignificantToken
+        // replay these already-scanned tokens (in order) before pulling from the scanner again,
+        // so the peek is completely transparent to the rest of the parser. It is empty in the
+        // common case, which keeps non-nested parsing byte-for-byte identical (Requirement 9).
+        Queue<PeekedToken> m_peekBuffer;
+
+        // A token captured during look-ahead together with the scanner's end-of-line flag at the
+        // time it was scanned, so replay can restore m_encounteredNewLine exactly.
+        struct PeekedToken
+        {
+            public CssToken Token;
+            public bool EndOfLine;
+        }
+
         // this is used to make sure we don't output two newlines in a row.
         // start it as true so we don't start off with a blank line
         bool lastOutputWasNewLine = true;
@@ -277,6 +293,12 @@ namespace NUglify.Css
         TokenType CurrentTokenType => m_currentToken?.TokenType ?? TokenType.None;
         string CurrentTokenText => m_currentToken != null ? m_currentToken.Text : string.Empty;
 
+        // True end-of-input for the parser: the scanner has reached EOF AND there are no
+        // buffered look-ahead tokens still waiting to be replayed. All parse loops test this
+        // instead of m_scanner.EndOfFile so that a classification peek (which may advance the
+        // scanner to EOF while tokens remain buffered) never makes a loop exit prematurely.
+        bool AtEof => m_scanner.EndOfFile && (m_peekBuffer == null || m_peekBuffer.Count == 0);
+
         #endregion
 
         public CssParser()
@@ -375,7 +397,7 @@ namespace NUglify.Css
 
                             case CssType.DeclarationList:
                                 SkipIfSpace();
-                                ParseDeclarationList(false);
+                                ParseBlockBody(false);
                                 break;
 
                             default:
@@ -447,6 +469,18 @@ namespace NUglify.Css
             var isNotEmpty = topBuilder.Length > 0;
             topBuilder.Release();
             return isNotEmpty;
+        }
+
+        /// <summary>
+        /// Pop the top waypoint off the stack and unconditionally discard its text.
+        /// Unlike <see cref="PopWaypoint"/>, this always throws the buffered output away
+        /// regardless of the <c>RemoveEmptyBlocks</c> setting. Used to fail a construct
+        /// atomically (e.g. an invalid nested selector list) so no partial output leaks.
+        /// </summary>
+        void DiscardWaypoint()
+        {
+            var topBuilder = m_builders.Pop();
+            topBuilder.Release();
         }
 
         /// <summary>
@@ -643,6 +677,8 @@ namespace NUglify.Css
             // the main guts of stuff
             while (ParseRule() == Parsed.True
               || ParseMedia() == Parsed.True
+              || ParseLayer() == Parsed.True
+              || ParseScope() == Parsed.True
               || ParsePage() == Parsed.True
               || ParseFontFace() == Parsed.True
               || ParseKeyFrames() == Parsed.True
@@ -671,6 +707,8 @@ namespace NUglify.Css
                 // try the guts again
                 while (ParseRule() == Parsed.True
                   || ParseMedia() == Parsed.True
+                  || ParseLayer() == Parsed.True
+                  || ParseScope() == Parsed.True
                   || ParsePage() == Parsed.True
                   || ParseFontFace() == Parsed.True
                   || ParseKeyFrames() == Parsed.True
@@ -971,6 +1009,8 @@ namespace NUglify.Css
                         // the main guts of stuff (copied from stylesheet)
                         while (ParseRule() == Parsed.True
                           || ParseMedia() == Parsed.True
+                          || ParseLayer() == Parsed.True
+                          || ParseScope() == Parsed.True
                           || ParsePage() == Parsed.True
                           || ParseFontFace() == Parsed.True
                           || ParseKeyFrames() == Parsed.True
@@ -987,8 +1027,18 @@ namespace NUglify.Css
 
                         if (CurrentTokenType != TokenType.Character || CurrentTokenText != "}")
                         {
+                            // distinguish an EOF-truncated block from one closed by an
+                            // unexpected non-brace token so the correct error is reported
+                            // for nested rules contained in the @supports block (Requirement 7.6)
+                            if (m_scanner.EndOfFile)
+                            {
+                                ReportError(0, CssErrorCode.UnexpectedEndOfFile);
+                            }
+                            else
+                        {
                             ReportError(0, CssErrorCode.ExpectedClosingBrace, CurrentTokenText);
                             SkipToEndOfStatement();
+                        }
                         }
                         else
                         {
@@ -1326,6 +1376,8 @@ namespace NUglify.Css
                         // the main guts of stuff
                         while (ParseRule() == Parsed.True
                           || ParseMedia() == Parsed.True
+                          || ParseLayer() == Parsed.True
+                          || ParseScope() == Parsed.True
                           || ParsePage() == Parsed.True
                           || ParseFontFace() == Parsed.True
                           || ParseAtKeyword() == Parsed.True
@@ -1368,12 +1420,36 @@ namespace NUglify.Css
                         }
                         else
                         {
+                            // a block was opened but was closed by an unexpected non-brace
+                            // token; report the malformed block so nested rules inside the
+                            // @media block are not silently emitted (Requirement 7.6)
+                            if (indented)
+                            {
+                                Unindent();
+                                ReportError(0, CssErrorCode.ExpectedClosingBrace, CurrentTokenText);
+                            }
+
                             SkipToEndOfStatement();
                             AppendCurrent();
                         }
                     }
                     else
                     {
+                        // reached EOF (or a non-character token) before the block's closing
+                        // brace; report the truncated block (Requirement 7.6)
+                        if (indented)
+                        {
+                            Unindent();
+                            if (m_scanner.EndOfFile)
+                            {
+                                ReportError(0, CssErrorCode.UnexpectedEndOfFile);
+                            }
+                            else
+                            {
+                                ReportError(0, CssErrorCode.ExpectedClosingBrace, CurrentTokenText);
+                            }
+                        }
+
                         SkipToEndOfStatement();
                         AppendCurrent();
                     }
@@ -1390,6 +1466,282 @@ namespace NUglify.Css
             }
 
             return parsed;
+        }
+
+        // Parses an @layer at-rule (CSS Cascade Layers). Handles both forms:
+        //   - statement form:  @layer name;            (and comma lists: @layer a, b, c;)
+        //   - block form:      @layer name { ... }     (and the anonymous @layer { ... })
+        // For the block form, the same rule-loop used by @media/@supports parses the contained
+        // style rules (and, through ParseRule/ParseNestedRule, their nested rules).
+        Parsed ParseLayer()
+        {
+            Parsed parsed = Parsed.False;
+            if (CurrentTokenType == TokenType.LayerSymbol)
+            {
+                // push a waypoint. We may want to throw out an empty @layer block directive.
+                var keepDirective = true;
+                PushWaypoint();
+
+                NewLine();
+                AppendCurrent();
+                SkipSpace();
+
+                // optional (possibly comma-separated, dotted) layer-name prelude
+                ParseLayerNameList();
+
+                if (CurrentTokenType == TokenType.Character && CurrentTokenText == ";")
+                {
+                    // statement form (@layer a, b;) -- always kept, there is no block to empty out
+                    Append(';');
+                    NewLine();
+                    SkipSpace();
+                }
+                else if (CurrentTokenType == TokenType.Character && CurrentTokenText == "{")
+                {
+                    // block form -- run the shared grouping-at-rule block body loop
+                    keepDirective = ParseGroupingAtRuleBlock();
+                }
+                else
+                {
+                    // neither a terminating semicolon nor a block
+                    ReportError(0, CssErrorCode.ExpectedSemicolonOrOpenBrace, CurrentTokenText);
+                    SkipToEndOfStatement();
+                    AppendCurrent();
+                    SkipSpace();
+                }
+
+                PopWaypoint(keepDirective);
+                parsed = Parsed.True;
+            }
+
+            return parsed;
+        }
+
+        // Parses an @scope at-rule (CSS Scoping). Handles the prelude
+        //   @scope (start) to (end) { ... }
+        // where the scope-start "(selector-list)" and the scope-end "to (selector-list)" are both
+        // optional (including the fully-anonymous @scope { ... }). For the block form the same
+        // rule-loop used by @media/@supports parses the contained style rules and their nested rules.
+        Parsed ParseScope()
+        {
+            Parsed parsed = Parsed.False;
+            if (CurrentTokenType == TokenType.ScopeSymbol)
+            {
+                // push a waypoint. We may want to throw out an empty @scope block directive.
+                var keepDirective = true;
+                PushWaypoint();
+
+                NewLine();
+                AppendCurrent();
+                SkipSpace();
+
+                // optional scope-start / scope-end prelude
+                ParseScopePrelude();
+
+                if (CurrentTokenType == TokenType.Character && CurrentTokenText == "{")
+                {
+                    // block form -- run the shared grouping-at-rule block body loop
+                    keepDirective = ParseGroupingAtRuleBlock();
+                }
+                else
+                {
+                    ReportError(0, CssErrorCode.ExpectedOpenBrace, CurrentTokenText);
+                    SkipToEndOfStatement();
+                    AppendCurrent();
+                    SkipSpace();
+                }
+
+                PopWaypoint(keepDirective);
+                parsed = Parsed.True;
+            }
+
+            return parsed;
+        }
+
+        // Parses the optional comma-separated list of layer names in an @layer prelude. A single
+        // space separates "@layer" from the first name; commas use the same formatting as a
+        // selector list (no surrounding whitespace when minifying, a trailing space in pretty
+        // output). No name at all is the valid anonymous form (@layer { ... }).
+        void ParseLayerNameList()
+        {
+            if (CurrentTokenType != TokenType.Identifier)
+            {
+                // anonymous layer -- nothing to emit
+                return;
+            }
+
+            // "@layer" needs a space before the first name so they don't run together
+            Append(' ');
+            ParseLayerName();
+
+            while (CurrentTokenType == TokenType.Character && CurrentTokenText == ",")
+            {
+                Append(',');
+
+                // check the line length -- if we're past the threshold, start a new line;
+                // otherwise add a single space when producing pretty output.
+                if (lineLength >= Settings.LineBreakThreshold)
+                    AddNewLine();
+                else if (Settings.OutputDeclarationWhitespace)
+                    Append(' ');
+
+                SkipSpace();
+                ParseLayerName();
+            }
+        }
+
+        // Parses a single (possibly dotted) layer name: IDENT ( '.' IDENT )*. The dots are emitted
+        // with no surrounding whitespace so a nested layer name such as "framework.component" is
+        // preserved exactly.
+        void ParseLayerName()
+        {
+            if (CurrentTokenType != TokenType.Identifier)
+                return;
+
+            AppendCurrent();
+            SkipSpace();
+
+            while (CurrentTokenType == TokenType.Character && CurrentTokenText == ".")
+            {
+                Append('.');
+                SkipSpace();
+
+                if (CurrentTokenType == TokenType.Identifier)
+                {
+                    AppendCurrent();
+                    SkipSpace();
+                }
+                else
+                {
+                    ReportError(0, CssErrorCode.ExpectedIdentifier, CurrentTokenText);
+                    break;
+                }
+            }
+        }
+
+        // Parses the optional @scope prelude: an optional scope-start "( selector-list )" followed
+        // by an optional scope-end "to ( selector-list )". Selectors inside the parens are parsed
+        // with the existing selector machinery so combinator/whitespace minification is identical
+        // to non-nested selectors.
+        void ParseScopePrelude()
+        {
+            // optional scope-start: ( selector-list )
+            if (CurrentTokenType == TokenType.Character && CurrentTokenText == "(")
+            {
+                ParseScopeSelectorGroup();
+                SkipIfSpace();
+            }
+
+            // optional scope-end: 'to' ( selector-list )
+            if (CurrentTokenType == TokenType.Identifier
+                && string.Equals(CurrentTokenText, "to", StringComparison.OrdinalIgnoreCase))
+            {
+                // separate 'to' from whatever precedes it and from the following '('
+                Append(' ');
+                AppendCurrent();
+                Append(' ');
+                SkipSpace();
+
+                if (CurrentTokenType == TokenType.Character && CurrentTokenText == "(")
+                {
+                    ParseScopeSelectorGroup();
+                    SkipIfSpace();
+                }
+                else
+                {
+                    ReportError(0, CssErrorCode.UnexpectedToken, CurrentTokenText);
+                    SkipToEndOfStatement();
+                }
+            }
+        }
+
+        // Parses a "( selector-list )" group used by an @scope scope-start / scope-end. Expects the
+        // current token to be the opening paren; emits the parens and the (optionally empty)
+        // selector list they contain.
+        void ParseScopeSelectorGroup()
+        {
+            // current token is '('
+            AppendCurrent();
+            SkipSpace();
+
+            if (!(CurrentTokenType == TokenType.Character && CurrentTokenText == ")"))
+            {
+                ParseSelectorList();
+            }
+
+            if (CurrentTokenType == TokenType.Character && CurrentTokenText == ")")
+            {
+                AppendCurrent();
+                SkipSpace();
+            }
+            else
+            {
+                ReportError(0, CssErrorCode.UnexpectedToken, CurrentTokenText);
+                SkipToEndOfStatement();
+            }
+        }
+
+        // Shared block-body loop for the grouping at-rules @layer and @scope. Expects the current
+        // token to be the opening brace of the block. Mirrors the @media/@supports body loop so
+        // contained style rules (and their nested rules) parse correctly, then consumes the closing
+        // brace. Returns true when the directive should be kept (its body produced output).
+        bool ParseGroupingAtRuleBlock()
+        {
+            if (Settings.BlocksStartOnSameLine == BlockStart.NewLine || Settings.BlocksStartOnSameLine == BlockStart.UseSource && m_encounteredNewLine)
+            {
+                NewLine();
+            }
+            else if (Settings.OutputDeclarationWhitespace)
+            {
+                Append(' ');
+            }
+
+            AppendCurrent();
+            Indent();
+            SkipSpace();
+
+            // push a waypoint for the rules inside the block so an empty block can be dropped
+            PushWaypoint();
+
+            // the main guts of stuff (same body loop used by @media/@supports)
+            while (ParseRule() == Parsed.True
+              || ParseMedia() == Parsed.True
+              || ParseLayer() == Parsed.True
+              || ParseScope() == Parsed.True
+              || ParsePage() == Parsed.True
+              || ParseFontFace() == Parsed.True
+              || ParseKeyFrames() == Parsed.True
+              || ParseAtKeyword() == Parsed.True
+              || ParseAspNetBlock() == Parsed.True)
+            {
+                // any number of S, Comment, CDO or CDC elements
+                ParseSCDOCDCComments();
+            }
+
+            var keepDirective = PopWaypoint(true);
+
+            Unindent();
+
+            if (CurrentTokenType == TokenType.Character && CurrentTokenText == "}")
+            {
+                NewLine();
+                AppendCurrent();
+                SkipSpace();
+            }
+            else if (m_scanner.EndOfFile)
+            {
+                // no closing brace, just the end of the file
+                ReportError(0, CssErrorCode.UnexpectedEndOfFile);
+            }
+            else
+            {
+                ReportError(0, CssErrorCode.ExpectedClosingBrace, CurrentTokenText);
+                SkipToEndOfStatement();
+                AppendCurrent();
+                SkipSpace();
+            }
+
+            return keepDirective;
         }
 
         Parsed ParseMediaQueryList(bool mightNeedSpace)
@@ -1763,7 +2115,7 @@ namespace NUglify.Css
                 }
                 else
                 {
-                    ParseDeclarationList(allowMargins);
+                    var bodyParsed = ParseBlockBody(allowMargins, out var containedNestedRule);
                     if (CurrentTokenType == TokenType.Character && CurrentTokenText == "}")
                     {
                         // append the closing brace
@@ -1772,6 +2124,14 @@ namespace NUglify.Css
                         Append('}');
                         // skip past it
                         SkipSpace();
+
+                        // If the block contained nested rules that were all removed (leaving it
+                        // empty even though it was not literally empty in the source), report the
+                        // block as empty so the enclosing rule can be dropped too (Requirement 8.5).
+                        // Gated on containedNestedRule so declaration-only blocks keep the existing
+                        // (non-empty) result and stay byte-for-byte identical (Requirement 9).
+                        if (bodyParsed == Parsed.Empty && containedNestedRule)
+                            parsed = Parsed.Empty;
                     }
                     else if (m_scanner.EndOfFile)
                     {
@@ -1793,15 +2153,301 @@ namespace NUglify.Css
             return parsed;
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
-        Parsed ParseDeclarationList(bool allowMargins)
+        // Classification of a single item found inside a declaration block body.
+        enum BlockItemKind
         {
+            // property : value  (parsed by the unchanged ParseDeclaration path)
+            Declaration,
+            // a nested style rule: selector (possibly & / relative) followed by { ... }
+            NestedRule,
+            // a nested conditional/grouping at-rule (@media / @supports / ...)
+            NestedAtRule,
+        }
+
+        // Decides what the upcoming block-body item is by inspecting the current token and,
+        // for the ambiguous cases, a bounded look-ahead into a buffered waypoint (see
+        // PeekSignificantTokens). The look-ahead never consumes the current token, so when the
+        // item turns out to be a declaration it is handed to the completely unchanged
+        // ParseDeclaration path -- preserving byte-for-byte output and error fidelity for
+        // non-nested input (Requirement 9).
+        BlockItemKind ClassifyBlockItem()
+        {
+            switch (CurrentTokenType)
+            {
+                case TokenType.NestingSelector:
+                    // '&' can only begin a nested selector; declarations never start with it.
+                    return BlockItemKind.NestedRule;
+
+                case TokenType.Hash:
+                    // '#id' is a selector; no declaration begins with a hash.
+                    return BlockItemKind.NestedRule;
+
+                case TokenType.MediaSymbol:
+                case TokenType.Supports:
+                case TokenType.LayerSymbol:
+                case TokenType.ScopeSymbol:
+                    // a nested conditional/grouping at-rule that we can already parse.
+                    return BlockItemKind.NestedAtRule;
+
+                case TokenType.Character:
+                    {
+                        var text = CurrentTokenText;
+
+                        // a relative nested selector may begin with a leading combinator.
+                        if (text == ">" || text == "+" || text == "~")
+                            return BlockItemKind.NestedRule;
+
+                        // '[attr]' attribute selector and ':pseudo' selector both begin nested
+                        // rules; a declaration never starts with '[' or ':'.
+                        if (text == "[" || text == ":")
+                            return BlockItemKind.NestedRule;
+
+                        // a leading ',' can start neither a declaration nor a valid nested selector.
+                        // Route it through the nested-rule path so it fails and is rejected
+                        // atomically (no partial/flattened output leaks - Requirement 2.5/5.6).
+                        if (text == ",")
+                            return BlockItemKind.NestedRule;
+
+                        // '.' and '*' are ambiguous: they can begin the IE property-prefix hack
+                        // (".prop: value" / "*prop: value" -- a declaration that MUST be preserved
+                        // for fidelity) OR a class/universal selector nested rule (".foo { }",
+                        // "* { }"). Disambiguate with bounded look-ahead.
+                        if (text == "." || text == "*")
+                            return ClassifyLeadingSelectorCharacter();
+
+                        // anything else falls through to the existing declaration path.
+                        return BlockItemKind.Declaration;
+                    }
+
+                case TokenType.Identifier:
+                    // ambiguous: a property name ("color: red") or a type-selector nested rule
+                    // ("div { }"). A leading identifier is treated as a nested rule only when an
+                    // opening brace follows it; every other case (":", ";", "}", EOF, a missing
+                    // colon, ...) stays on the unchanged declaration path for fidelity.
+                    {
+                        var next = PeekSignificantTokens(1);
+                        if (next.Count >= 1 && IsCharacterToken(next[0], "{"))
+                            return BlockItemKind.NestedRule;
+
+                        return BlockItemKind.Declaration;
+                    }
+
+                default:
+                    return BlockItemKind.Declaration;
+            }
+        }
+
+        // Disambiguates a leading '.' or '*' between the IE property-prefix hack declaration and a
+        // class / universal-selector nested rule. The hack always has the shape
+        // ( '.' | '*' ) identifier ':'  (a valueless "( '.' | '*' ) identifier ;|}" also stays a
+        // declaration). Any other continuation after the identifier -- or a non-identifier token
+        // right after '.'/'*' for the '*' universal case -- is a nested rule.
+        BlockItemKind ClassifyLeadingSelectorCharacter()
+        {
+            var prefix = CurrentTokenText;
+            var next = PeekSignificantTokens(2);
+
+            if (next.Count >= 1 && next[0].TokenType == TokenType.Identifier)
+            {
+                // "( . | * ) identifier <something>"
+                if (next.Count >= 2)
+                {
+                    // a colon ADJACENT to the identifier ("prop:") is the property-prefix hack ->
+                    // declaration. A colon SEPARATED by whitespace (".foo :hover") is a descendant
+                    // pseudo-class selector -> nested rule.
+                    if (IsCharacterToken(next[1], ":"))
+                        return WhitespaceSeparatesFirstTwoSignificant()
+                            ? BlockItemKind.NestedRule
+                            : BlockItemKind.Declaration;
+
+                    // ';' or '}' right here means a valueless / malformed declaration; keep the
+                    // existing declaration behavior.
+                    if (IsCharacterToken(next[1], ";") || IsCharacterToken(next[1], "}"))
+                        return BlockItemKind.Declaration;
+
+                    // otherwise it continues a selector (".x.y", ".foo>", ".foo{", ...).
+                    return BlockItemKind.NestedRule;
+                }
+
+                // "( . | * ) identifier <EOF>": no disambiguating token -> keep the existing
+                // declaration behavior for fidelity.
+                return BlockItemKind.Declaration;
+            }
+
+            // '*' followed by a non-identifier is the universal selector ("* { }", "*.foo", "*:x").
+            if (prefix == "*")
+                return BlockItemKind.NestedRule;
+
+            // '.' not followed by an identifier is not a valid class selector; leave it on the
+            // existing declaration path so its error handling is unchanged.
+            return BlockItemKind.Declaration;
+        }
+
+        static bool IsCharacterToken(CssToken token, string text)
+        {
+            return token != null && token.TokenType == TokenType.Character && token.Text == text;
+        }
+
+        // After a PeekSignificantTokens call, returns true when a Space or Comment token appears
+        // between the first and second significant tokens in the buffered look-ahead (i.e. they
+        // are NOT adjacent in the source). Used to tell "prop:" (declaration) from ".foo :pseudo".
+        bool WhitespaceSeparatesFirstTwoSignificant()
+        {
+            if (m_peekBuffer == null)
+                return false;
+
+            var significantSeen = 0;
+            foreach (var entry in m_peekBuffer)
+            {
+                var type = entry.Token?.TokenType ?? TokenType.None;
+                if (type == TokenType.Space || type == TokenType.Comment)
+                {
+                    // whitespace/comment AFTER the first significant token but BEFORE the second.
+                    if (significantSeen >= 1)
+                        return true;
+                }
+                else if (type != TokenType.None)
+                {
+                    significantSeen++;
+                    if (significantSeen >= 2)
+                        return false;
+                }
+            }
+
+            return false;
+        }
+
+        // Routes a recognized nested at-rule symbol to its parser (Requirement 7.3).
+        void ParseNestedAtRule()
+                {
+            if (ParseMedia() == Parsed.True)
+                return;
+
+            if (ParseSupports() == Parsed.True)
+                return;
+
+            if (ParseLayer() == Parsed.True)
+                return;
+
+            if (ParseScope() == Parsed.True)
+                return;
+
+            // no matching parser consumed the symbol -- recover so we cannot loop forever.
+            ReportError(0, CssErrorCode.UnexpectedToken, CurrentTokenText);
+            SkipToEndOfStatement();
+                    AppendCurrent();
+                    SkipSpace();
+                }
+
+        // Discards (without emitting) the remainder of the current block body up to its closing
+        // brace or EOF, honoring nested (), [], and {} pairs. Used to fail a malformed nested
+        // construct atomically so no partial or flattened output leaks into the enclosing rule
+        // (Requirement 2.5 / 5.5 / 5.6).
+        void DiscardToEndOfBlockBody()
+                {
+            // buffer skipped text into a throwaway waypoint so any appends (e.g. from SkipToClose)
+            // are thrown away rather than emitted.
+            PushWaypoint();
+            while (!AtEof && (CurrentTokenType != TokenType.Character || CurrentTokenText != "}"))
+                    {
+                if (CurrentTokenType == TokenType.Character
+                    && (CurrentTokenText == "(" || CurrentTokenText == "[" || CurrentTokenText == "{"))
+                    {
+                    SkipToClose();
+                    }
+                    else
+                    {
+                    NextToken();
+                    }
+                }
+            DiscardWaypoint();
+            }
+
+        // Removes a single trailing ';' from the current output waypoint, if present. Used after a
+        // trailing nested rule is dropped as empty so the semicolon that separated it from the
+        // previous declaration does not linger as a redundant terminator. At the call site (the
+        // block-body loop, before the closing brace is emitted) the builder ends in the ';' itself
+        // in both minified and pretty output, so no surrounding whitespace needs to be considered.
+        void TrimTrailingSemicolon()
+        {
+            var top = m_builders.Peek();
+            if (top.Length > 0 && top[top.Length - 1] == ';')
+                top.Length--;
+        }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
+        Parsed ParseBlockBody(bool allowMargins)
+        {
+            return ParseBlockBody(allowMargins, out _);
+        }
+
+        // containedNestedRule is set true when the body routed at least one item to
+        // ParseNestedRule. The caller (ParseDeclarationBlock) uses it to decide whether an
+        // empty result may drop the enclosing rule: only blocks that actually contained nested
+        // rules can newly become empty through nested-rule removal. Declaration-only blocks keep
+        // their historical return value so non-nested output stays byte-for-byte identical (Req 9).
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
+        Parsed ParseBlockBody(bool allowMargins, out bool containedNestedRule)
+        {
+            containedNestedRule = false;
             var parsed = Parsed.Empty;
-            while (!m_scanner.EndOfFile)
+            while (!AtEof)
             {
                 // check the line length before each new declaration -- if we're past the threshold, start a new line
                 if (lineLength >= Settings.LineBreakThreshold)
 	                AddNewLine();
+
+                // classify the upcoming item. Nested rules and nested at-rules are streamed as
+                // they are recognized (preserving source order, Requirement 2.2/2.3), then the
+                // loop continues with the next item. Declarations take the unchanged path below.
+                var itemKind = ClassifyBlockItem();
+                if (itemKind == BlockItemKind.NestedRule)
+                {
+                    containedNestedRule = true;
+                    Parsed parsedRule = ParseNestedRule();
+                    if (parsedRule == Parsed.False)
+                    {
+                        // the nested rule was malformed (e.g. an invalid nested selector list, an
+                        // empty selector position, or a stray comma). Reject the rest of this block
+                        // body without emitting any partial/flattened output (Requirement 2.5/5.5).
+                        DiscardToEndOfBlockBody();
+                        break;
+                    }
+
+                    if (parsed == Parsed.Empty && parsedRule != Parsed.Empty)
+                        parsed = parsedRule;
+
+                    // a nested rule ends after its own closing brace (or at EOF); no ';' terminator
+                    // is expected and no separator is inserted before the next item (Requirement 8.6).
+                    if (AtEof)
+                        break;
+                    if (CurrentTokenType == TokenType.Character && CurrentTokenText == "}")
+                    {
+                        // this nested rule was the last item in the block. If it was dropped as
+                        // empty, a ';' emitted after the preceding declaration is now a redundant
+                        // trailing semicolon (e.g. ".a{color:red;.b{}}" -> ".a{color:red}"); trim
+                        // it unless terminating semicolons are being forced.
+                        if (parsedRule == Parsed.Empty && !Settings.TermSemicolons)
+                            TrimTrailingSemicolon();
+                        break;
+                    }
+
+                    continue;
+                }
+
+                if (itemKind == BlockItemKind.NestedAtRule)
+                {
+                    ParseNestedAtRule();
+                    if (parsed == Parsed.Empty)
+                        parsed = Parsed.True;
+
+                    if (AtEof)
+                        break;
+                    if (CurrentTokenType == TokenType.Character && CurrentTokenText == "}")
+                        break;
+
+                    continue;
+                }
 
                 Parsed parsedDecl = ParseDeclaration();
                 if (parsed == Parsed.Empty && parsedDecl != Parsed.Empty)
@@ -1821,7 +2467,7 @@ namespace NUglify.Css
                 {
                     if ((CurrentTokenType != TokenType.Character
                         || (CurrentTokenText != ";" && CurrentTokenText != "}"))
-                        && !m_scanner.EndOfFile)
+                        && !AtEof)
                     {
                         ReportError(0, CssErrorCode.ExpectedSemicolonOrClosingBrace, CurrentTokenText);
 
@@ -1832,7 +2478,7 @@ namespace NUglify.Css
                 }
 
                 // if we're at the end, close it out
-                if (m_scanner.EndOfFile)
+                if (AtEof)
                 {
                     // if we want to force a terminating semicolon, add it now
                     if (Settings.TermSemicolons)
@@ -1876,7 +2522,7 @@ namespace NUglify.Css
                         // up and returns them (if any)
                         string comments = NextSignificantToken();
 
-                        if (m_scanner.EndOfFile)
+                        if (AtEof)
                         {
                             // if we have an EOF after the semicolon and no comments, then we don't want
                             // to output anything else.
@@ -2266,6 +2912,218 @@ namespace NUglify.Css
                     }
                 }
             }
+            return parsed;
+        }
+
+        // Parses a style rule nested inside a declaration block. Structurally parallels
+        // ParseRule, but parses a nested selector list (which understands the & nesting
+        // selector and relative selectors) and, on the opening brace, recurses into the
+        // existing ParseDeclarationBlock so nesting works to arbitrary depth.
+        //
+        // A waypoint is pushed so that, when RemoveEmptyBlocks is enabled, a nested rule
+        // whose block ends up empty is discarded. Emission uses the same NewLine/Indent/
+        // Append helpers as ParseRule, so pretty-mode output indents each nested rule one
+        // level deeper than its parent's declarations.
+        Parsed ParseNestedRule()
+        {
+            var keepRule = true;
+            PushWaypoint();
+
+            // check the line length before each new rule -- if we're past the threshold, start a new line
+            if (lineLength >= Settings.LineBreakThreshold)
+                AddNewLine();
+
+            m_forceNewLine = true;
+
+            // parse the nested selector list (handles &, relative selectors, and comma-separated lists).
+            Parsed parsed = ParseNestedSelectorList();
+            if (parsed == Parsed.True)
+            {
+                if (m_scanner.EndOfFile)
+                {
+                    // we parsed a selector expecting this to be a nested rule, but then hit
+                    // the end of the file before the declaration block. That isn't correct.
+                    ReportError(0, CssErrorCode.UnexpectedEndOfFile);
+                }
+                else
+                {
+                    // on the opening brace, recurse into the existing declaration block parser.
+                    // Because the block body loop routes nested rules back here, this recursion
+                    // gives arbitrary-depth nesting for free. If the brace is missing,
+                    // ParseDeclarationBlock reports the error and recovers.
+                    parsed = ParseDeclarationBlock(false);
+                    if (parsed == Parsed.Empty)
+                    {
+                        // the nested rule's block is empty (either literally, or because every
+                        // item inside it was removed). Drop the rule -- PopWaypoint discards its
+                        // buffered text when RemoveEmptyBlocks is enabled (Requirement 8.4). We
+                        // deliberately keep the Parsed.Empty result (rather than promoting it to
+                        // Parsed.True) so an enclosing block that ends up containing only dropped
+                        // nested rules can detect its own emptiness and be dropped too (8.5).
+                        keepRule = false;
+                    }
+                }
+            }
+
+            PopWaypoint(keepRule);
+            return parsed;
+        }
+
+        // Parses a comma-separated list of nested selectors that share a single declaration
+        // block. Optional whitespace is allowed around the commas. Emits the selectors
+        // separated by a single comma using the same formatting non-nested selector lists use
+        // (no surrounding whitespace when minifying; a trailing space in pretty output).
+        //
+        // The list fails atomically: if any selector is invalid, or a selector position is
+        // empty (a leading, trailing, or doubled comma), the entire buffered list output is
+        // discarded so that none of the selectors are emitted, ExpectedSelector is reported,
+        // and Parsed.False is returned.
+        Parsed ParseNestedSelectorList()
+        {
+            // buffer the whole list in its own waypoint so we can discard it wholesale
+            // (regardless of RemoveEmptyBlocks) if any part of the list turns out invalid.
+            PushWaypoint();
+
+            // the first selector is required -- a leading comma leaves an empty position.
+            if (ParseNestedSelector() != Parsed.True)
+            {
+                ReportError(0, CssErrorCode.ExpectedSelector, CurrentTokenText);
+                DiscardWaypoint();
+                return Parsed.False;
+            }
+
+            // ParseNestedSelector leaves trailing whitespace already skipped, but be safe.
+            SkipIfSpace();
+
+            while (CurrentTokenType == TokenType.Character && CurrentTokenText == ",")
+            {
+                // emit the comma using the existing non-nested selector-list formatting.
+                Append(',');
+
+                // check the line length -- if we're past the threshold, start a new line;
+                // otherwise add a single space when producing pretty output.
+                if (lineLength >= Settings.LineBreakThreshold)
+                    AddNewLine();
+                else if (Settings.OutputDeclarationWhitespace)
+                    Append(' ');
+
+                // step past the comma and any whitespace preceding the next selector.
+                SkipSpace();
+
+                // a trailing or doubled comma leaves an empty selector position -- invalid.
+                if (ParseNestedSelector() != Parsed.True)
+                {
+                    ReportError(0, CssErrorCode.ExpectedSelector, CurrentTokenText);
+                    DiscardWaypoint();
+                    return Parsed.False;
+                }
+
+                // skip any whitespace before the next comma or the opening brace.
+                SkipIfSpace();
+            }
+
+            // the whole list parsed successfully -- keep the buffered selectors.
+            PopWaypoint(true);
+            return Parsed.True;
+        }
+
+        // Parses a single nested selector (a complex selector as it appears inside a
+        // declaration block). Handles the nesting selector (&) in every valid position
+        // (standalone, joined, doubled, repeated, and after another selector) as well as
+        // relative selectors that begin with a combinator or a bare compound selector
+        // (an implied leading & is NOT emitted). Does NOT skip whitespace after the selector
+        // and does NOT parse a following comma-separated list (see ParseNestedSelectorList).
+        Parsed ParseNestedSelector()
+        {
+            Parsed parsed;
+
+            // a relative nested selector may begin with a leading combinator (>, +, ~).
+            // The leading & is implied and is NOT inserted into the output -- we emit
+            // exactly the combinator that was written.
+            Parsed leadingCombinator = ParseCombinator();
+            if (leadingCombinator == Parsed.True)
+            {
+                // the leading combinator MUST be followed by a valid compound selector
+                if (ParseNestedCompoundSelector() != Parsed.True)
+                {
+                    ReportError(0, CssErrorCode.ExpectedSelector, CurrentTokenText);
+                    return Parsed.False;
+                }
+
+                parsed = Parsed.True;
+            }
+            else
+            {
+                // otherwise it starts with a compound selector, which may lead with & or
+                // be a bare compound selector (relative selector with an implied &).
+                parsed = ParseNestedCompoundSelector();
+                if (parsed != Parsed.True)
+                {
+                    return parsed;
+                }
+            }
+
+            // continue the complex selector: (combinator compound-selector)*
+            // this mirrors ParseSelector so that whitespace/combinator handling is identical.
+            bool spaceWasSkipped = SkipIfSpace();
+            while (!m_scanner.EndOfFile)
+            {
+                Parsed parsedCombinator = ParseCombinator();
+                if (parsedCombinator != Parsed.True)
+                {
+                    // the selector ends at a comma, an open brace, or a close paren.
+                    if (CurrentTokenType == TokenType.Character
+                      && (CurrentTokenText == "," || CurrentTokenText == "{" || CurrentTokenText == ")"))
+                    {
+                        break;
+                    }
+                    else if (spaceWasSkipped)
+                    {
+                        // descendant combinator -- retain a single space
+                        Append(' ');
+                    }
+                }
+
+                if (ParseNestedCompoundSelector() == Parsed.False)
+                {
+                    ReportError(0, CssErrorCode.ExpectedSelector, CurrentTokenText);
+                    break;
+                }
+                else
+                {
+                    spaceWasSkipped = SkipIfSpace();
+                }
+            }
+
+            return parsed;
+        }
+
+        // Parses a compound selector that may contain nesting selectors (&) interspersed
+        // with the usual simple-selector parts, e.g. &, &.bar, .bar&, &&, &:hover.
+        // Does NOT skip whitespace after the selector. Returns Parsed.True if at least one
+        // selector part (a & or a simple selector) was consumed.
+        Parsed ParseNestedCompoundSelector()
+        {
+            Parsed parsed = Parsed.False;
+            while (!m_scanner.EndOfFile)
+            {
+                if (CurrentTokenType == TokenType.NestingSelector)
+                {
+                    // emit the & verbatim with zero added whitespace
+                    AppendCurrent();
+                    NextToken();
+                    parsed = Parsed.True;
+                }
+                else if (ParseSimpleSelector() == Parsed.True)
+                {
+                    parsed = Parsed.True;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
             return parsed;
         }
 
@@ -2869,6 +3727,23 @@ namespace NUglify.Css
                     }
                 }
             }
+
+            // The nesting selector '&' is only valid in a selector, never where a term/value
+            // is expected (e.g. inside a declaration value such as "color:&" or "width:10&px").
+            // If term parsing stopped on a '&', report it against the offending token and
+            // recover to the end of the declaration WITHOUT emitting the '&'. We return
+            // Parsed.True so the caller does not additionally report ExpectedExpression for
+            // the same construct (Requirements 1.5, 3.6).
+            if (CurrentTokenType == TokenType.NestingSelector)
+            {
+                ReportError(0, CssErrorCode.UnexpectedNestingSelector, CurrentTokenText);
+
+                // skip past the offending '&' so recovery never streams it to the output
+                NextToken();
+                SkipToEndOfDeclaration();
+                return Parsed.True;
+            }
+
             return parsed;
         }
 
@@ -3171,6 +4046,12 @@ namespace NUglify.Css
                     {
                         goto default;
                     }
+                    break;
+
+                case TokenType.NestingSelector:
+                    // '&' is never a valid term. Leave parsed as False and do NOT report here;
+                    // ParseExpr reports UnexpectedNestingSelector once against the offending
+                    // token and recovers, so the '&' is never emitted (Requirements 1.5, 3.6).
                     break;
 
                 default:
@@ -4044,9 +4925,32 @@ namespace NUglify.Css
         #region Next... methods
 
         // skip to the next token, but output any comments we may find as we go along
+        // Pull the next raw token from the source. If a classification look-ahead buffered
+        // tokens, replay them (in order) first -- restoring the scanner's end-of-line flag for
+        // each one -- before pulling fresh tokens from the scanner. When the buffer is empty
+        // (the common case) this is identical to calling m_scanner.NextToken directly.
+        CssToken PullRawToken(bool reduceZeros)
+        {
+            if (m_peekBuffer != null)
+            {
+                var entry = m_peekBuffer.Dequeue();
+                if (m_peekBuffer.Count == 0)
+                {
+                    m_peekBuffer = null;
+                }
+
+                // restore the end-of-line flag that was in effect when this token was scanned,
+                // so callers that read m_scanner.GotEndOfLine right after see the correct value.
+                m_scanner.GotEndOfLine = entry.EndOfLine;
+                return entry.Token;
+            }
+
+            return m_scanner.NextToken(reduceZeros);
+        }
+
         TokenType NextToken()
         {
-            m_currentToken = m_scanner.NextToken(!m_insideCalc && parsingZeroReducibleProperty);
+            m_currentToken = PullRawToken(!m_insideCalc && parsingZeroReducibleProperty);
             if (EchoWriter != null)
             {
                 EchoWriter.Write(CurrentTokenText);
@@ -4061,7 +4965,7 @@ namespace NUglify.Css
                 {
                     NewLine();
                 }
-                m_currentToken = m_scanner.NextToken(!m_insideCalc);
+                m_currentToken = PullRawToken(!m_insideCalc);
                 if (EchoWriter != null)
                 {
                     EchoWriter.Write(CurrentTokenText);
@@ -4075,7 +4979,7 @@ namespace NUglify.Css
         // just skip to the next token; don't skip over comments
         TokenType NextRawToken()
         {
-            m_currentToken = m_scanner.NextToken(!m_insideCalc);
+            m_currentToken = PullRawToken(!m_insideCalc);
             if (EchoWriter != null)
             {
                 EchoWriter.Write(CurrentTokenText);
@@ -4083,6 +4987,63 @@ namespace NUglify.Css
 
             m_encounteredNewLine = m_scanner.GotEndOfLine;
             return CurrentTokenType;
+        }
+
+        // ---- Block-body classification look-ahead --------------------------------------
+        //
+        // Peeks up to <paramref name="count"/> significant tokens (skipping Space and Comment)
+        // that FOLLOW the current token, WITHOUT consuming the current token or emitting any
+        // output. Every token read (including the skipped spaces/comments) is buffered so that
+        // subsequent NextToken calls replay them in order -- leaving parser state untouched.
+        // Returns the significant tokens found, in order (may be fewer than requested at EOF).
+        List<CssToken> PeekSignificantTokens(int count)
+        {
+            var consumed = new List<PeekedToken>();
+            var significant = new List<CssToken>();
+
+            // If a previous peek left buffered tokens, drain them into our working list first so
+            // we don't lose them (in practice the buffer is empty when classification runs).
+            if (m_peekBuffer != null)
+            {
+                consumed.AddRange(m_peekBuffer);
+                foreach (var pending in m_peekBuffer)
+                {
+                    if (pending.Token != null
+                        && pending.Token.TokenType != TokenType.Space
+                        && pending.Token.TokenType != TokenType.Comment
+                        && pending.Token.TokenType != TokenType.None
+                        && significant.Count < count)
+                    {
+                        significant.Add(pending.Token);
+                    }
+                }
+                m_peekBuffer = null;
+            }
+
+            while (significant.Count < count && !m_scanner.EndOfFile)
+            {
+                var token = m_scanner.NextToken(false);
+                consumed.Add(new PeekedToken { Token = token, EndOfLine = m_scanner.GotEndOfLine });
+
+                var type = token?.TokenType ?? TokenType.None;
+                if (type == TokenType.None)
+                {
+                    break;
+                }
+
+                if (type != TokenType.Space && type != TokenType.Comment)
+                {
+                    significant.Add(token);
+                }
+            }
+
+            // stash everything we read so the parser replays it transparently.
+            if (consumed.Count > 0)
+            {
+                m_peekBuffer = new Queue<PeekedToken>(consumed);
+            }
+
+            return significant;
         }
 
         string NextSignificantToken()
@@ -4094,7 +5055,7 @@ namespace NUglify.Css
             try
             {
                 // get the next token
-                m_currentToken = m_scanner.NextToken(!m_insideCalc);
+                m_currentToken = PullRawToken(!m_insideCalc);
                 if (EchoWriter != null)
                 {
                     EchoWriter.Write(CurrentTokenText);
@@ -4181,7 +5142,7 @@ namespace NUglify.Css
                     }
 
                     // next token
-                    m_currentToken = m_scanner.NextToken(!m_insideCalc);
+                    m_currentToken = PullRawToken(!m_insideCalc);
                     if (EchoWriter != null)
                     {
                         EchoWriter.Write(CurrentTokenText);

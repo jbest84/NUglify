@@ -89,5 +89,6 @@ namespace NUglify.Css
         UnexpectedCharset = 1068,
         PossibleCharsetError = 1069,
         UnexpectedFunction = 1070,
+        UnexpectedNestingSelector = 1071,
     };
 }
