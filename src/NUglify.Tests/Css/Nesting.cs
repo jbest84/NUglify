@@ -2518,5 +2518,191 @@ namespace NUglify.Tests.Css
 
             RunProperty(property);
         }
+
+        // ------------------------------------------------------------------
+        // Feature: css-nesting, peek-replay invariant -
+        // The block-body classifier peeks (and buffers) a bounded window of tokens to tell a
+        // declaration apart from a nested rule. Those buffered tokens are later *replayed*
+        // instead of being re-scanned by the parser, so the replay must reproduce EXACTLY what a
+        // fresh scan would have produced. Two pieces of machinery make that true and are the ones
+        // most likely to regress silently: NormalizePeekedToken (re-applies zero-reduction of
+        // length units to buffered number tokens) and TryScanBufferedReplacementToken (reassembles
+        // a %replacement% token from its buffered pieces). These example cases lock their output.
+        // ------------------------------------------------------------------
+        [Test]
+        public void PeekReplay_PreservesZeroReductionAndReplacementTokens()
+        {
+            var cases = new[]
+            {
+                // lengths must still zero-reduce after flowing through the look-ahead buffer
+                Tuple.Create(".a{width:0px}", ".a{width:0}"),
+                Tuple.Create(".a{margin:0em}", ".a{margin:0}"),
+                Tuple.Create(".a{height:0rem}", ".a{height:0}"),
+                Tuple.Create(".a{top:0vh}", ".a{top:0}"),
+
+                // non-length zeros are NOT reduced and must round-trip verbatim
+                Tuple.Create(".a{width:0%}", ".a{width:0%}"),
+                Tuple.Create(".a{x:0deg}", ".a{x:0deg}"),
+                Tuple.Create(".a{padding:0s}", ".a{padding:0s}"),
+
+                // %replacement% tokens must be reassembled from their buffered pieces
+                Tuple.Create(".a{color:%NAME%}", ".a{color:%NAME%}"),
+                Tuple.Create(".a{color:%NAME:red%}", ".a{color:%NAME:red%}"),
+                Tuple.Create(".a{color:%a.b.c%}", ".a{color:%a.b.c%}"),
+                Tuple.Create(".a{color:%NAME:%}", ".a{color:%NAME:%}"),
+
+                // and both kinds must survive when surrounded by other block items (which change
+                // the buffer state at the point each value is scanned)
+                Tuple.Create(".a{width:0px;color:%NAME%}", ".a{width:0;color:%NAME%}"),
+                Tuple.Create(".a{color:%NAME%;width:0px}", ".a{color:%NAME%;width:0}"),
+                Tuple.Create(".a{.n{x:y}width:0px}", ".a{.n{x:y}width:0}"),
+            };
+
+            foreach (var pair in cases)
+            {
+                var result = Uglify.Css(pair.Item1);
+                Assert.That(result.HasErrors, Is.False, $"unexpected errors for <{pair.Item1}>");
+                Assert.That(result.Code, Is.EqualTo(pair.Item2), $"peek-replay output mismatch for <{pair.Item1}>");
+            }
+        }
+
+        // Declaration values that exercise the buffered-replay path (zero-reducible lengths,
+        // non-reducible zeros, and %replacement% tokens).
+        static readonly string[] ReplayProbeDeclarations =
+        {
+            "width:0px", "margin:0em", "height:0rem", "top:0vh",
+            "width:0%", "padding:0s", "x:0deg",
+            "color:%NAME%", "background:%THEME:red%", "content:%a.b.c%",
+        };
+
+        // Self-terminated sibling items placed BEFORE the probe to vary the look-ahead buffer
+        // state. Declarations carry their own ';'; nested rules and nested at-rules do not need a
+        // separator before the following item.
+        static readonly string[] ReplaySiblingItems =
+        {
+            "color:red;", "display:block;", "margin:0;", "width:0px;",
+            ".n{x:y}", "&:hover{color:blue}", "@media screen{color:red}",
+        };
+
+        // Minify a single declaration on its own and return the text inside the rule braces --
+        // i.e. the probe's canonical minified form with a minimal look-ahead buffer.
+        static string MinifiedInner(string declaration)
+        {
+            var code = Uglify.Css(".probe{" + declaration + "}").Code ?? string.Empty;
+            var open = code.IndexOf('{');
+            var close = code.LastIndexOf('}');
+            return (open < 0 || close <= open) ? string.Empty : code.Substring(open + 1, close - open - 1);
+        }
+
+        // ------------------------------------------------------------------
+        // Feature: css-nesting, Property 14: Look-ahead replay is transparent -
+        // A probe declaration placed LAST in a block is preceded by an arbitrary list of other
+        // items. Whatever state those items leave the classification look-ahead buffer in, the
+        // probe's minified text must be identical to minifying the probe on its own -- what
+        // precedes a value in the buffer must never perturb that value's replayed output.
+        // ------------------------------------------------------------------
+        [Test]
+        public void Property14_LookaheadReplayIsTransparent()
+        {
+            var gen = from probe in Gen.Elements(ReplayProbeDeclarations)
+                      from prefix in Gen.ListOf(Gen.Elements(ReplaySiblingItems))
+                      select Tuple.Create(probe, prefix.ToList());
+
+            var property = Prop.ForAll(Arb.From(gen), (Tuple<string, List<string>> t) =>
+            {
+                var probe = t.Item1;
+                var expectedProbe = MinifiedInner(probe);
+
+                var source = ".a{" + string.Concat(t.Item2) + probe + "}";
+                var result = Uglify.Css(source);
+                var code = result.Code ?? string.Empty;
+
+                var ok = !result.HasErrors
+                    && expectedProbe.Length > 0
+                    && code.EndsWith(expectedProbe + "}", StringComparison.Ordinal);
+
+                return ok.Label($"source=<{source}> code=<{code}> expectedProbe=<{expectedProbe}> errors={result.HasErrors}");
+            });
+
+            RunProperty(property);
+        }
+
+        // ------------------------------------------------------------------
+        // Feature: css-nesting, @container prelude spacing (minified + pretty) -
+        // The @container prelude is emitted by a self-contained token re-spacer (it does NOT reuse
+        // the @media query machinery, whose grammar cannot express container names, style()
+        // queries, or recursively nested conditions, and whose pretty-mode spacing differs).
+        // These characterization tests lock the current prelude spacing in BOTH output modes so a
+        // future change to that re-spacer cannot silently alter @container output.
+        // ------------------------------------------------------------------
+        [Test]
+        public void Container_PrettyOutputPreservesLogicalPreludeSpacing()
+        {
+            var pretty = Uglify.Css(
+                "@container card (width > 400px) and (height < 500px){.a{color:red}}",
+                new CssSettings { OutputMode = OutputMode.MultipleLines });
+            Assert.That(pretty.HasErrors, Is.False);
+
+            var expected = string.Join("\n",
+                "@container card (width>400px) and (height<500px)",
+                "{",
+                "    .a",
+                "    {",
+                "        color: #f00",
+                "    }",
+                "}");
+            Assert.That(NormalizeNewLines(pretty.Code), Is.EqualTo(expected), $"actual <{pretty.Code}>");
+        }
+
+        [Test]
+        public void Container_PrettyOutputPreservesStyleQuerySpacing()
+        {
+            var pretty = Uglify.Css(
+                "@container style(--accent: blue){.a{color:red}}",
+                new CssSettings { OutputMode = OutputMode.MultipleLines });
+            Assert.That(pretty.HasErrors, Is.False);
+
+            var expected = string.Join("\n",
+                "@container style(--accent:blue)",
+                "{",
+                "    .a",
+                "    {",
+                "        color: #f00",
+                "    }",
+                "}");
+            Assert.That(NormalizeNewLines(pretty.Code), Is.EqualTo(expected), $"actual <{pretty.Code}>");
+        }
+
+        [Test]
+        public void Container_PrettyOutputPreservesNestedConditionSpacing()
+        {
+            var pretty = Uglify.Css(
+                "@container ((min-width:100px) and (min-height:100px)){.a{color:red}}",
+                new CssSettings { OutputMode = OutputMode.MultipleLines });
+            Assert.That(pretty.HasErrors, Is.False);
+
+            var expected = string.Join("\n",
+                "@container ((min-width:100px) and (min-height:100px))",
+                "{",
+                "    .a",
+                "    {",
+                "        color: #f00",
+                "    }",
+                "}");
+            Assert.That(NormalizeNewLines(pretty.Code), Is.EqualTo(expected), $"actual <{pretty.Code}>");
+        }
+
+        [Test]
+        public void Container_MinifiedPreservesRangeAndNotSpacing()
+        {
+            // range syntax keeps operators tight; 'not'/'or' combinators keep a single space
+            var range = Uglify.Css("@container (400px <= width <= 700px){.a{color:red}}");
+            Assert.That(range.HasErrors, Is.False);
+            Assert.That(range.Code, Is.EqualTo("@container (400px<=width<=700px){.a{color:#f00}}"), $"actual <{range.Code}>");
+
+            var notOr = Uglify.Css("@container not (width > 400px){.a{color:red}}");
+            Assert.That(notOr.HasErrors, Is.False);
+            Assert.That(notOr.Code, Is.EqualTo("@container not (width>400px){.a{color:#f00}}"), $"actual <{notOr.Code}>");
+        }
     }
 }
