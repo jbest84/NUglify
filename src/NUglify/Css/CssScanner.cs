@@ -734,6 +734,10 @@ namespace NUglify.Css
                         tokenType = TokenType.MediaSymbol;
                         break;
 
+                    case "CONTAINER":
+                        tokenType = TokenType.ContainerSymbol;
+                        break;
+
                     case "LAYER":
                         tokenType = TokenType.LayerSymbol;
                         break;

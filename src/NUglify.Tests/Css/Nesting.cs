@@ -1784,6 +1784,161 @@ namespace NUglify.Tests.Css
             Assert.That(result.Code, Is.EqualTo("@scope(.a) to (.b){.a{&:hover{color:#f00}}}"), $"actual <{result.Code}>");
         }
 
+        [Test]
+        public void Task91_NestedScopePreludeAllowsAmpersandSelectors()
+        {
+            var result = Uglify.Css(".a{@scope (& > .scope) to (& .limit){& .child{color:red}}}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(".a{@scope(&>.scope) to (& .limit){& .child{color:#f00}}}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_NestingSelectorInsideIsPseudoList()
+        {
+            var result = Uglify.Css(".a{:is(.bar, &.baz){color:red}}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(".a{:is(.bar,&.baz){color:#f00}}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_TypeSelectorBeforeAmpersandRemainsValid()
+        {
+            var result = Uglify.Css(".a{div&{color:red}}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(".a{div&{color:#f00}}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_NestedLayerInsideLayerPreservesNestedSelector()
+        {
+            var result = Uglify.Css(".a{@layer base{@layer support{& body{color:red}}}}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(".a{@layer base{@layer support{& body{color:#f00}}}}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_NestedGroupRuleBodiesAllowDirectDeclarations()
+        {
+            var cases = new (string name, string source, string expected)[]
+            {
+                ("media", ".a{@media screen{color:red;display:block}}", ".a{@media screen{color:#f00;display:block}}"),
+                ("supports", ".a{@supports (display:grid){color:red;display:grid}}", ".a{@supports(display:grid){color:#f00;display:grid}}"),
+            };
+
+            foreach (var (name, source, expected) in cases)
+            {
+                var result = Uglify.Css(source);
+                Assert.That(result.HasErrors, Is.False, $"[{name}] actual <{result.Code}>");
+                Assert.That(result.Code, Is.EqualTo(expected), $"[{name}] actual <{result.Code}>");
+            }
+        }
+
+        [Test]
+        public void Task91_PseudoElementParentListKeepsNestedAmpersandRule()
+        {
+            var result = Uglify.Css(".foo,.foo::before{color:red;&{background:blue}}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(".foo,.foo::before{color:#f00;&{background:#00f}}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_NestingSelectorInsideWhereAndNotPseudoLists()
+        {
+            var cases = new (string name, string source, string expected)[]
+            {
+                ("where", ".a{:where(.bar, &.baz){color:red}}", ".a{:where(.bar,&.baz){color:#f00}}"),
+                ("not", ".a{:not(&.baz){color:red}}", ".a{:not(&.baz){color:#f00}}"),
+            };
+
+            foreach (var (name, source, expected) in cases)
+            {
+                var result = Uglify.Css(source);
+                Assert.That(result.HasErrors, Is.False, $"[{name}] actual <{result.Code}>");
+                Assert.That(result.Code, Is.EqualTo(expected), $"[{name}] actual <{result.Code}>");
+            }
+        }
+
+        [Test]
+        public void Task91_NestedScopePreludeSupportsAdditionalAmpersandVariants()
+        {
+            var cases = new (string name, string source, string expected)[]
+            {
+                ("scope-only", ".a{@scope (&){& .child{color:red}}}", ".a{@scope(&){& .child{color:#f00}}}"),
+                ("scope-to", ".a{@scope (&) to (.limit){& .child{color:red}}}", ".a{@scope(&) to (.limit){& .child{color:#f00}}}"),
+            };
+
+            foreach (var (name, source, expected) in cases)
+            {
+                var result = Uglify.Css(source);
+                Assert.That(result.HasErrors, Is.False, $"[{name}] actual <{result.Code}>");
+                Assert.That(result.Code, Is.EqualTo(expected), $"[{name}] actual <{result.Code}>");
+            }
+        }
+
+        [Test]
+        public void Task91_TopLevelContainerRuleParses()
+        {
+            var result = Uglify.Css("@container card (width > 30rem){.a{color:red}}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo("@container card (width>30rem){.a{color:#f00}}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_NestingInsideContainerMinified()
+        {
+            var result = Uglify.Css(".card{@container (width > 30rem){& .title{color:red}}}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(".card{@container (width>30rem){& .title{color:#f00}}}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_NestedContainerBodiesAllowDirectDeclarations()
+        {
+            var result = Uglify.Css(".card{@container sidebar (width > 30rem){color:red;display:block}}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(".card{@container sidebar (width>30rem){color:#f00;display:block}}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_ContainerPreludeSupportsLogicalAndStyleQueries()
+        {
+            var result = Uglify.Css("@container card (inline-size > 30rem) and style(color: green){.a{color:red}}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo("@container card (inline-size>30rem) and style(color:green){.a{color:#f00}}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_ContainerBodyPreservesDeclarationsAndNestedRulesInSourceOrder()
+        {
+            var result = Uglify.Css(".card{@container sidebar ((width > 30rem) and (height > 20rem)){color:red;& .title{color:blue}display:block}}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(".card{@container sidebar ((width>30rem) and (height>20rem)){color:#f00;& .title{color:#00f}display:block}}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_TopLevelAmpersandSelectorParses()
+        {
+            var result = Uglify.Css("&{color:red}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo("&{color:#f00}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_TopLevelAmpersandPseudoSelectorParses()
+        {
+            var result = Uglify.Css("&:hover{color:red}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo("&:hover{color:#f00}"), $"actual <{result.Code}>");
+        }
+
+        [Test]
+        public void Task91_TopLevelAmpersandInsideSelectorListPseudoParses()
+        {
+            var result = Uglify.Css(":is(&,.foo){color:red}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(":is(&,.foo){color:#f00}"), $"actual <{result.Code}>");
+        }
+
         // Requirements 7.1 / 8.7 (pretty): a nested rule inside an @media block is
         // indented one level deeper than its parent style rule, which is itself
         // indented one level inside the at-rule block.
@@ -1993,6 +2148,48 @@ namespace NUglify.Tests.Css
                 Assert.That(code, Is.Empty,
                     $"[{name}] the rejected rule leaked output for <{source}>: <{code}>");
             }
+        }
+
+        [Test]
+        public void Task92_AmpersandImmediatelyBeforeTypeSelector_ReportsErrorAndRejectsRule()
+        {
+            var result = Uglify.Css(".a{color:red;&div{color:blue}}");
+            var code = result.Code ?? string.Empty;
+
+            Assert.That(result.HasErrors, Is.True,
+                $"expected a parse error for invalid '&div' nested selector but got <{code}>");
+            Assert.That(ReportsErrorCode(result, CssErrorCode.ExpectedSelector), Is.True,
+                $"expected ExpectedSelector for invalid '&div' nested selector but got codes " +
+                $"[{string.Join(",", result.Errors.Select(e => e.ErrorCode))}]");
+            Assert.That(code, Is.EqualTo(".a{color:#f00;}"));
+        }
+
+        [Test]
+        public void Task92_InvalidNestedSelectorRecoversToFollowingDeclaration()
+        {
+            var result = Uglify.Css(".a{&div{color:red}background:blue}");
+            var code = result.Code ?? string.Empty;
+
+            Assert.That(result.HasErrors, Is.True,
+                $"expected a parse error for invalid '&div' nested selector but got <{code}>");
+            Assert.That(ReportsErrorCode(result, CssErrorCode.ExpectedSelector), Is.True,
+                $"expected ExpectedSelector for invalid '&div' nested selector but got codes " +
+                $"[{string.Join(",", result.Errors.Select(e => e.ErrorCode))}]");
+            Assert.That(code, Is.EqualTo(".a{background:#00f}"));
+        }
+
+        [Test]
+        public void Task92_InvalidNestedSelectorRecoversToFollowingValidNestedRule()
+        {
+            var result = Uglify.Css(".a{&div{color:red}&.ok{color:blue}}");
+            var code = result.Code ?? string.Empty;
+
+            Assert.That(result.HasErrors, Is.True,
+                $"expected a parse error for invalid '&div' nested selector but got <{code}>");
+            Assert.That(ReportsErrorCode(result, CssErrorCode.ExpectedSelector), Is.True,
+                $"expected ExpectedSelector for invalid '&div' nested selector but got codes " +
+                $"[{string.Join(",", result.Errors.Select(e => e.ErrorCode))}]");
+            Assert.That(code, Is.EqualTo(".a{&.ok{color:#00f}}"));
         }
 
         // ------------------------------------------------------------------
@@ -2213,6 +2410,41 @@ namespace NUglify.Tests.Css
                     return false;
             }
             return true;
+        }
+
+        static void AssertMinify(string source, string expected)
+        {
+            var result = Uglify.Css(source);
+            Assert.That(result.HasErrors, Is.False, string.Join(Environment.NewLine, result.Errors.Select(e => e.ToString())));
+            Assert.That(result.Code, Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void TypeSelectorFollowedByClassIsParsedAsNestedRule()
+        {
+            AssertMinify(".a{div.foo{color:red}}", ".a{div.foo{color:#f00}}");
+        }
+
+        [Test]
+        public void TypeSelectorFollowedByPseudoIsParsedAsNestedRule()
+        {
+            AssertMinify(".a{div:hover{color:red}}", ".a{div:hover{color:#f00}}");
+        }
+
+        [Test]
+        public void NamespaceQualifiedTypeSelectorIsParsedAsNestedRule()
+        {
+            AssertMinify("@namespace svg \"urn:x\";.a{svg|rect{color:red}}", "@namespace svg \"urn:x\";.a{svg|rect{color:#f00}}");
+        }
+
+        [Test]
+        public void MalformedNestedRuleRecoversToFollowingDeclarationWhenBoundedByOwnBlock()
+        {
+            var result = Uglify.Css(".a{color:red;&,{x:y}background:blue}");
+
+            Assert.That(result.HasErrors, Is.True);
+            Assert.That(ReportsErrorCode(result, CssErrorCode.ExpectedSelector), Is.True);
+            Assert.That(result.Code, Is.EqualTo(".a{color:#f00;background:#00f}"));
         }
 
         // ------------------------------------------------------------------

@@ -44,6 +44,9 @@ namespace NUglify.Css
         bool parsingZeroReducibleProperty;
         // not to be confused with "non-reducible"
         bool parsingNoneReducibleProperty;
+        bool m_allowNestedRulesInAtRuleBodies;
+        bool m_allowNestingScopePrelude;
+        int m_nestedSelectorDepth;
 
         int lineLength;
         bool m_noColorAbbreviation;
@@ -405,7 +408,7 @@ namespace NUglify.Css
                                 goto case CssType.FullStyleSheet;
                         }
 
-                        if (!m_scanner.EndOfFile)
+                        if (!AtEof)
                         {
                             int errorNumber = (int)CssErrorCode.ExpectedEndOfFile;
                             OnCssError(new UglifyError()
@@ -677,6 +680,7 @@ namespace NUglify.Css
             // the main guts of stuff
             while (ParseRule() == Parsed.True
               || ParseMedia() == Parsed.True
+              || ParseContainer() == Parsed.True
               || ParseLayer() == Parsed.True
               || ParseScope() == Parsed.True
               || ParsePage() == Parsed.True
@@ -692,7 +696,7 @@ namespace NUglify.Css
 
             // if there weren't any errors, we SHOULD be at the EOF state right now.
             // if we're not, we may have encountered an invalid, unexpected character.
-            while (!m_scanner.EndOfFile)
+            while (!AtEof)
             {
                 // throw an exception
                 ReportError(0, CssErrorCode.UnexpectedToken, CurrentTokenText);
@@ -707,6 +711,7 @@ namespace NUglify.Css
                 // try the guts again
                 while (ParseRule() == Parsed.True
                   || ParseMedia() == Parsed.True
+                  || ParseContainer() == Parsed.True
                   || ParseLayer() == Parsed.True
                   || ParseScope() == Parsed.True
                   || ParsePage() == Parsed.True
@@ -785,7 +790,7 @@ namespace NUglify.Css
             SkipSpace();
 
             // loop until we find the closing breace
-            while (!m_scanner.EndOfFile
+            while (!AtEof
               && (CurrentTokenType != TokenType.Character || CurrentTokenText != "}"))
             {
                 // see if we are recursing unknown blocks
@@ -841,6 +846,10 @@ namespace NUglify.Css
             else if(CurrentTokenType == TokenType.Supports)
             {
                 parsed = ParseSupports();
+            }
+            else if (CurrentTokenType == TokenType.ContainerSymbol)
+            {
+                parsed = ParseContainer();
             }
             else if (CurrentTokenType == TokenType.CharacterSetSymbol)
             {
@@ -1007,8 +1016,9 @@ namespace NUglify.Css
                         PushWaypoint();
 
                         // the main guts of stuff (copied from stylesheet)
-                        while (ParseRule() == Parsed.True
+                        while (ParseAtRuleBodyRule() == Parsed.True
                           || ParseMedia() == Parsed.True
+                          || ParseContainer() == Parsed.True
                           || ParseLayer() == Parsed.True
                           || ParseScope() == Parsed.True
                           || ParsePage() == Parsed.True
@@ -1030,7 +1040,7 @@ namespace NUglify.Css
                             // distinguish an EOF-truncated block from one closed by an
                             // unexpected non-brace token so the correct error is reported
                             // for nested rules contained in the @supports block (Requirement 7.6)
-                            if (m_scanner.EndOfFile)
+                            if (AtEof)
                             {
                                 ReportError(0, CssErrorCode.UnexpectedEndOfFile);
                             }
@@ -1374,8 +1384,9 @@ namespace NUglify.Css
                         PushWaypoint();
 
                         // the main guts of stuff
-                        while (ParseRule() == Parsed.True
+                        while (ParseAtRuleBodyRule() == Parsed.True
                           || ParseMedia() == Parsed.True
+                          || ParseContainer() == Parsed.True
                           || ParseLayer() == Parsed.True
                           || ParseScope() == Parsed.True
                           || ParsePage() == Parsed.True
@@ -1440,7 +1451,7 @@ namespace NUglify.Css
                         if (indented)
                         {
                             Unindent();
-                            if (m_scanner.EndOfFile)
+                            if (AtEof)
                             {
                                 ReportError(0, CssErrorCode.UnexpectedEndOfFile);
                             }
@@ -1463,6 +1474,39 @@ namespace NUglify.Css
                 }
 
                 PopWaypoint(keepDirective);
+            }
+
+            return parsed;
+        }
+
+        Parsed ParseContainer()
+        {
+            Parsed parsed = Parsed.False;
+            if (CurrentTokenType == TokenType.ContainerSymbol)
+            {
+                var keepDirective = true;
+                PushWaypoint();
+
+                NewLine();
+                AppendCurrent();
+                SkipSpace();
+
+                ParseContainerPrelude();
+
+                if (CurrentTokenType == TokenType.Character && CurrentTokenText == "{")
+                {
+                    keepDirective = ParseGroupingAtRuleBlock();
+                }
+                else
+                {
+                    ReportError(0, CssErrorCode.ExpectedOpenBrace, CurrentTokenText);
+                    SkipToEndOfStatement();
+                    AppendCurrent();
+                    SkipSpace();
+                }
+
+                PopWaypoint(keepDirective);
+                parsed = Parsed.True;
             }
 
             return parsed;
@@ -1666,7 +1710,14 @@ namespace NUglify.Css
 
             if (!(CurrentTokenType == TokenType.Character && CurrentTokenText == ")"))
             {
-                ParseSelectorList();
+                if (m_allowNestingScopePrelude)
+                {
+                    ParseNestedSelectorList();
+                }
+                else
+                {
+                    ParseSelectorList();
+                }
             }
 
             if (CurrentTokenType == TokenType.Character && CurrentTokenText == ")")
@@ -1678,6 +1729,97 @@ namespace NUglify.Css
             {
                 ReportError(0, CssErrorCode.UnexpectedToken, CurrentTokenText);
                 SkipToEndOfStatement();
+            }
+        }
+
+        void ParseContainerPrelude()
+        {
+            CssToken previousToken = null;
+            var isFirstToken = true;
+            while (!AtEof)
+            {
+                if (CurrentTokenType == TokenType.Character && CurrentTokenText == "{")
+                    break;
+
+                if (CurrentTokenType == TokenType.Character && CurrentTokenText == ";")
+                    break;
+
+                if (isFirstToken || NeedsContainerPreludeSpace(previousToken, m_currentToken))
+                    Append(' ');
+
+                AppendCurrent();
+                previousToken = m_currentToken;
+                isFirstToken = false;
+                SkipSpace();
+            }
+        }
+
+        static bool NeedsContainerPreludeSpace(CssToken previousToken, CssToken currentToken)
+        {
+            if (previousToken == null || currentToken == null)
+                return false;
+
+            // Function tokens already include their opening parenthesis (for example "style("),
+            // so the next token belongs immediately after that text with no inserted space.
+            if (previousToken.TokenType == TokenType.Function)
+                return false;
+
+            if (previousToken.TokenType == TokenType.Character)
+            {
+                var previousText = previousToken.Text;
+                if (previousText == "(" || previousText == "[" || previousText == "{" || previousText == ":" || previousText == ",")
+                    return false;
+            }
+
+            if (currentToken.TokenType == TokenType.Character)
+            {
+                var currentText = currentToken.Text;
+                if (currentText == ")" || currentText == "]" || currentText == "}" || currentText == "," || currentText == ":" || currentText == ";")
+                    return false;
+
+                if (currentText == "(")
+                {
+                    return IsContainerPreludeWordLike(previousToken);
+                }
+
+                return false;
+            }
+
+            return IsContainerPreludeWordLike(previousToken);
+        }
+
+        static bool IsContainerPreludeWordLike(CssToken token)
+        {
+            if (token == null)
+                return false;
+
+            switch (token.TokenType)
+            {
+                case TokenType.Identifier:
+                case TokenType.Function:
+                case TokenType.Number:
+                case TokenType.Dimension:
+                case TokenType.RelativeLength:
+                case TokenType.AbsoluteLength:
+                case TokenType.Resolution:
+                case TokenType.Angle:
+                case TokenType.Time:
+                case TokenType.Frequency:
+                case TokenType.Speech:
+                case TokenType.Percentage:
+                case TokenType.Hash:
+                case TokenType.String:
+                case TokenType.Uri:
+                case TokenType.Not:
+                case TokenType.Any:
+                case TokenType.Has:
+                case TokenType.Is:
+                case TokenType.Where:
+                case TokenType.Matches:
+                    return true;
+
+                default:
+                    return token.TokenType == TokenType.Character && token.Text == ")";
             }
         }
 
@@ -1704,8 +1846,9 @@ namespace NUglify.Css
             PushWaypoint();
 
             // the main guts of stuff (same body loop used by @media/@supports)
-            while (ParseRule() == Parsed.True
+            while (ParseAtRuleBodyRule() == Parsed.True
               || ParseMedia() == Parsed.True
+              || ParseContainer() == Parsed.True
               || ParseLayer() == Parsed.True
               || ParseScope() == Parsed.True
               || ParsePage() == Parsed.True
@@ -1728,7 +1871,7 @@ namespace NUglify.Css
                 AppendCurrent();
                 SkipSpace();
             }
-            else if (m_scanner.EndOfFile)
+            else if (AtEof)
             {
                 // no closing brace, just the end of the file
                 ReportError(0, CssErrorCode.UnexpectedEndOfFile);
@@ -1742,6 +1885,55 @@ namespace NUglify.Css
             }
 
             return keepDirective;
+        }
+
+        Parsed ParseAtRuleBodyRule()
+        {
+            if (!m_allowNestedRulesInAtRuleBodies)
+                return ParseRule();
+
+            var itemKind = ClassifyBlockItem();
+            if (itemKind == BlockItemKind.Declaration)
+            {
+                var parsedDeclaration = ParseDeclaration();
+                if (parsedDeclaration == Parsed.True)
+                {
+                    if (CurrentTokenType == TokenType.Character && CurrentTokenText == ";")
+                    {
+                        AppendCurrent();
+                        SkipSpace();
+                    }
+                    else if (!(CurrentTokenType == TokenType.Character && CurrentTokenText == "}"))
+                    {
+                        ReportError(0, CssErrorCode.ExpectedSemicolon, CurrentTokenText);
+                        SkipToEndOfDeclaration();
+                    }
+                }
+
+                return parsedDeclaration;
+            }
+
+            if (itemKind == BlockItemKind.NestedAtRule)
+                return Parsed.False;
+
+            if (CurrentTokenType == TokenType.NestingSelector
+                || CurrentTokenType == TokenType.Hash
+                || CurrentTokenType == TokenType.Identifier
+                || (CurrentTokenType == TokenType.Character
+                    && (CurrentTokenText == "."
+                        || CurrentTokenText == "*"
+                        || CurrentTokenText == "["
+                        || CurrentTokenText == ":"
+                        || CurrentTokenText == "|"
+                        || CurrentTokenText == ">"
+                        || CurrentTokenText == "+"
+                        || CurrentTokenText == "~"
+                        || CurrentTokenText == ",")))
+            {
+                return ParseNestedRule();
+            }
+
+            return ParseRule();
         }
 
         Parsed ParseMediaQueryList(bool mightNeedSpace)
@@ -2133,7 +2325,7 @@ namespace NUglify.Css
                         if (bodyParsed == Parsed.Empty && containedNestedRule)
                             parsed = Parsed.Empty;
                     }
-                    else if (m_scanner.EndOfFile)
+                    else if (AtEof)
                     {
                         // no closing brace, just the end of the file
                         ReportError(0, CssErrorCode.UnexpectedEndOfFile);
@@ -2184,6 +2376,7 @@ namespace NUglify.Css
 
                 case TokenType.MediaSymbol:
                 case TokenType.Supports:
+                case TokenType.ContainerSymbol:
                 case TokenType.LayerSymbol:
                 case TokenType.ScopeSymbol:
                     // a nested conditional/grouping at-rule that we can already parse.
@@ -2220,17 +2413,12 @@ namespace NUglify.Css
                     }
 
                 case TokenType.Identifier:
-                    // ambiguous: a property name ("color: red") or a type-selector nested rule
-                    // ("div { }"). A leading identifier is treated as a nested rule only when an
-                    // opening brace follows it; every other case (":", ";", "}", EOF, a missing
-                    // colon, ...) stays on the unchanged declaration path for fidelity.
-                    {
-                        var next = PeekSignificantTokens(1);
-                        if (next.Count >= 1 && IsCharacterToken(next[0], "{"))
-                            return BlockItemKind.NestedRule;
-
-                        return BlockItemKind.Declaration;
-                    }
+                    // ambiguous: a property name ("color: red") or a nested selector that begins
+                    // with a type selector ("div { }", "div.foo { }", "div:hover { }",
+                    // "svg|rect { }", "div span { }"). Use bounded look-ahead so common
+                    // declaration forms stay on the unchanged path while selector continuations
+                    // that eventually reach a block opener are recognized as nested rules.
+                    return ClassifyLeadingIdentifier();
 
                 default:
                     return BlockItemKind.Declaration;
@@ -2283,9 +2471,77 @@ namespace NUglify.Css
             return BlockItemKind.Declaration;
         }
 
+        BlockItemKind ClassifyLeadingIdentifier()
+        {
+            var next = PeekSignificantTokens(1);
+            if (next.Count == 0)
+                return BlockItemKind.Declaration;
+
+            var first = next[0];
+            if (IsCharacterToken(first, "{"))
+                return BlockItemKind.NestedRule;
+
+            if (IsCharacterToken(first, ";") || IsCharacterToken(first, "}"))
+                return BlockItemKind.Declaration;
+
+            if (IsCharacterToken(first, ".")
+                || IsCharacterToken(first, "#")
+                || IsCharacterToken(first, "[")
+                || IsCharacterToken(first, "|")
+                || IsCharacterToken(first, ",")
+                || IsCharacterToken(first, "+")
+                || IsCharacterToken(first, ">")
+                || IsCharacterToken(first, "~")
+                || first.TokenType == TokenType.NestingSelector
+                || first.TokenType == TokenType.Identifier)
+            {
+                return ContainsOpenBraceBeforeDeclarationTerminator(PeekSignificantTokens(5), 0)
+                    ? BlockItemKind.NestedRule
+                    : BlockItemKind.Declaration;
+            }
+
+            if (IsCharacterToken(first, ":"))
+            {
+                var extended = PeekSignificantTokens(4);
+                if (extended.Count < 2)
+                    return BlockItemKind.Declaration;
+
+                var second = extended[1];
+                if (second.TokenType == TokenType.Identifier
+                    || second.TokenType == TokenType.Function
+                    || second.TokenType == TokenType.Not
+                    || second.TokenType == TokenType.Any
+                    || second.TokenType == TokenType.Matches
+                    || second.TokenType == TokenType.Has
+                    || IsCharacterToken(second, ":"))
+                {
+                    return ContainsOpenBraceBeforeDeclarationTerminator(extended, 1)
+                        ? BlockItemKind.NestedRule
+                        : BlockItemKind.Declaration;
+                }
+            }
+
+            return BlockItemKind.Declaration;
+        }
+
         static bool IsCharacterToken(CssToken token, string text)
         {
             return token != null && token.TokenType == TokenType.Character && token.Text == text;
+        }
+
+        static bool ContainsOpenBraceBeforeDeclarationTerminator(IList<CssToken> tokens, int startIndex)
+        {
+            for (var i = startIndex; i < tokens.Count; i++)
+            {
+                var token = tokens[i];
+                if (IsCharacterToken(token, "{"))
+                    return true;
+
+                if (IsCharacterToken(token, ";") || IsCharacterToken(token, "}"))
+                    return false;
+            }
+
+            return false;
         }
 
         // After a PeekSignificantTokens call, returns true when a Space or Comment token appears
@@ -2317,51 +2573,151 @@ namespace NUglify.Css
             return false;
         }
 
+        bool WhitespaceSeparatesCurrentAndFirstPeekedSignificant()
+        {
+            if (m_peekBuffer == null)
+                return false;
+
+            foreach (var entry in m_peekBuffer)
+            {
+                var token = entry.Token;
+                if (token == null || token.TokenType == TokenType.None)
+                    break;
+
+                if (token.TokenType == TokenType.Space || token.TokenType == TokenType.Comment)
+                    return true;
+
+                return false;
+            }
+
+            return false;
+        }
+
         // Routes a recognized nested at-rule symbol to its parser (Requirement 7.3).
         void ParseNestedAtRule()
-                {
-            if (ParseMedia() == Parsed.True)
-                return;
+        {
+            var restoreAllowNestedRulesInAtRuleBodies = m_allowNestedRulesInAtRuleBodies;
+            var restoreAllowNestingScopePrelude = m_allowNestingScopePrelude;
+            m_allowNestedRulesInAtRuleBodies = true;
+            m_allowNestingScopePrelude = true;
+            try
+            {
+                if (ParseMedia() == Parsed.True)
+                    return;
 
-            if (ParseSupports() == Parsed.True)
-                return;
+                if (ParseSupports() == Parsed.True)
+                    return;
 
-            if (ParseLayer() == Parsed.True)
-                return;
+                if (ParseContainer() == Parsed.True)
+                    return;
 
-            if (ParseScope() == Parsed.True)
-                return;
+                if (ParseLayer() == Parsed.True)
+                    return;
+
+                if (ParseScope() == Parsed.True)
+                    return;
+            }
+            finally
+            {
+                m_allowNestedRulesInAtRuleBodies = restoreAllowNestedRulesInAtRuleBodies;
+                m_allowNestingScopePrelude = restoreAllowNestingScopePrelude;
+            }
 
             // no matching parser consumed the symbol -- recover so we cannot loop forever.
             ReportError(0, CssErrorCode.UnexpectedToken, CurrentTokenText);
             SkipToEndOfStatement();
-                    AppendCurrent();
-                    SkipSpace();
-                }
+            AppendCurrent();
+            SkipSpace();
+        }
 
         // Discards (without emitting) the remainder of the current block body up to its closing
         // brace or EOF, honoring nested (), [], and {} pairs. Used to fail a malformed nested
         // construct atomically so no partial or flattened output leaks into the enclosing rule
         // (Requirement 2.5 / 5.5 / 5.6).
         void DiscardToEndOfBlockBody()
-                {
+        {
             // buffer skipped text into a throwaway waypoint so any appends (e.g. from SkipToClose)
             // are thrown away rather than emitted.
             PushWaypoint();
-            while (!AtEof && (CurrentTokenType != TokenType.Character || CurrentTokenText != "}"))
+
+            var closingStack = new Stack<string>();
+            while (!AtEof)
+            {
+                if (CurrentTokenType == TokenType.Character)
+                {
+                    if (CurrentTokenText == "}" && closingStack.Count == 0)
+                        break;
+
+                    if (CurrentTokenText == "(")
+                        closingStack.Push(")");
+                    else if (CurrentTokenText == "[")
+                        closingStack.Push("]");
+                    else if (CurrentTokenText == "{")
+                        closingStack.Push("}");
+                    else if (closingStack.Count > 0 && CurrentTokenText == closingStack.Peek())
+                        closingStack.Pop();
+                }
+
+                NextToken();
+            }
+
+            DiscardWaypoint();
+        }
+
+        // After a nested-rule parse fails, try to recover locally by skipping only that malformed
+        // rule instead of discarding the entire parent block. This mirrors browser recovery for
+        // invalid inner rules that still have a bounded "{...}" body: we consume through the end
+        // of that body and leave the next sibling item available to parse normally.
+        bool RecoverMalformedNestedRule()
+        {
+            // Classification / selector parsing may have prefetched part of the malformed
+            // selector into the look-ahead buffer. We are about to discard the entire bad rule,
+            // so drop any buffered selector fragments and continue from the scanner's raw state.
+            m_peekBuffer = null;
+
+            var braceDepth = 0;
+            var sawOpenBrace = false;
+
+            while (!AtEof)
+            {
+                if (CurrentTokenType == TokenType.Character)
+                {
+                    if (CurrentTokenText == "{")
                     {
-                if (CurrentTokenType == TokenType.Character
-                    && (CurrentTokenText == "(" || CurrentTokenText == "[" || CurrentTokenText == "{"))
-                    {
-                    SkipToClose();
+                        sawOpenBrace = true;
+                        ++braceDepth;
                     }
-                    else
+                    else if (CurrentTokenText == "}")
                     {
-                    NextToken();
+                        if (!sawOpenBrace)
+                        {
+                            return false;
+                        }
+
+                        --braceDepth;
+                        NextToken();
+
+                        if (braceDepth <= 0)
+                        {
+                            SkipIfSpace();
+                            return true;
+                        }
+
+                        continue;
+                    }
+                    else if (!sawOpenBrace && CurrentTokenText == ";")
+                    {
+                        NextToken();
+                        SkipIfSpace();
+                        return true;
                     }
                 }
-            DiscardWaypoint();
+
+                NextToken();
             }
+
+            return sawOpenBrace;
+        }
 
         // Removes a single trailing ';' from the current output waypoint, if present. Used after a
         // trailing nested rule is dropped as empty so the semicolon that separated it from the
@@ -2407,11 +2763,22 @@ namespace NUglify.Css
                     Parsed parsedRule = ParseNestedRule();
                     if (parsedRule == Parsed.False)
                     {
-                        // the nested rule was malformed (e.g. an invalid nested selector list, an
-                        // empty selector position, or a stray comma). Reject the rest of this block
-                        // body without emitting any partial/flattened output (Requirement 2.5/5.5).
-                        DiscardToEndOfBlockBody();
-                        break;
+                        // When the malformed nested selector still has its own block, recover by
+                        // skipping just that inner rule so following siblings can survive. If we
+                        // cannot find a bounded malformed rule, fall back to rejecting the rest of
+                        // this block body so no partial/flattened output leaks (Req 2.5/5.5).
+                        if (!RecoverMalformedNestedRule())
+                        {
+                            DiscardToEndOfBlockBody();
+                            break;
+                        }
+
+                        if (AtEof)
+                            break;
+                        if (CurrentTokenType == TokenType.Character && CurrentTokenText == "}")
+                            break;
+
+                        continue;
                     }
 
                     if (parsed == Parsed.Empty && parsedRule != Parsed.Empty)
@@ -2752,14 +3119,14 @@ namespace NUglify.Css
             Parsed parsed = ParseSelector();
             if (parsed == Parsed.True)
             {
-                if (m_scanner.EndOfFile)
+                if (AtEof)
                 {
                     // we parsed a selector expecting this to be a rule, but then WHAM! we hit
                     // the end of the file. That isn't correct. Throw an error.
                     ReportError(0, CssErrorCode.UnexpectedEndOfFile);
                 }
 
-                while (!m_scanner.EndOfFile)
+                while (!AtEof)
                 {
                     if (CurrentTokenType != TokenType.Character
                         || (CurrentTokenText != "," && CurrentTokenText != "{"))
@@ -2880,7 +3247,7 @@ namespace NUglify.Css
                 // save whether or not we are skipping anything by checking the type before we skip
                 bool spaceWasSkipped = SkipIfSpace();
 
-                while (!m_scanner.EndOfFile)
+                while (!AtEof)
                 {
                     Parsed parsedCombinator = ParseCombinator();
                     if (parsedCombinator != Parsed.True)
@@ -2939,7 +3306,7 @@ namespace NUglify.Css
             Parsed parsed = ParseNestedSelectorList();
             if (parsed == Parsed.True)
             {
-                if (m_scanner.EndOfFile)
+                if (AtEof)
                 {
                     // we parsed a selector expecting this to be a nested rule, but then hit
                     // the end of the file before the declaration block. That isn't correct.
@@ -3035,67 +3402,75 @@ namespace NUglify.Css
         // and does NOT parse a following comma-separated list (see ParseNestedSelectorList).
         Parsed ParseNestedSelector()
         {
+            ++m_nestedSelectorDepth;
+            try
+            {
             Parsed parsed;
 
             // a relative nested selector may begin with a leading combinator (>, +, ~).
             // The leading & is implied and is NOT inserted into the output -- we emit
             // exactly the combinator that was written.
-            Parsed leadingCombinator = ParseCombinator();
-            if (leadingCombinator == Parsed.True)
-            {
-                // the leading combinator MUST be followed by a valid compound selector
-                if (ParseNestedCompoundSelector() != Parsed.True)
+                Parsed leadingCombinator = ParseCombinator();
+                if (leadingCombinator == Parsed.True)
                 {
-                    ReportError(0, CssErrorCode.ExpectedSelector, CurrentTokenText);
-                    return Parsed.False;
-                }
-
-                parsed = Parsed.True;
-            }
-            else
-            {
-                // otherwise it starts with a compound selector, which may lead with & or
-                // be a bare compound selector (relative selector with an implied &).
-                parsed = ParseNestedCompoundSelector();
-                if (parsed != Parsed.True)
-                {
-                    return parsed;
-                }
-            }
-
-            // continue the complex selector: (combinator compound-selector)*
-            // this mirrors ParseSelector so that whitespace/combinator handling is identical.
-            bool spaceWasSkipped = SkipIfSpace();
-            while (!m_scanner.EndOfFile)
-            {
-                Parsed parsedCombinator = ParseCombinator();
-                if (parsedCombinator != Parsed.True)
-                {
-                    // the selector ends at a comma, an open brace, or a close paren.
-                    if (CurrentTokenType == TokenType.Character
-                      && (CurrentTokenText == "," || CurrentTokenText == "{" || CurrentTokenText == ")"))
+                    // the leading combinator MUST be followed by a valid compound selector
+                    if (ParseNestedCompoundSelector() != Parsed.True)
                     {
-                        break;
+                        ReportError(0, CssErrorCode.ExpectedSelector, CurrentTokenText);
+                        return Parsed.False;
                     }
-                    else if (spaceWasSkipped)
-                    {
-                        // descendant combinator -- retain a single space
-                        Append(' ');
-                    }
-                }
 
-                if (ParseNestedCompoundSelector() == Parsed.False)
-                {
-                    ReportError(0, CssErrorCode.ExpectedSelector, CurrentTokenText);
-                    break;
+                    parsed = Parsed.True;
                 }
                 else
                 {
-                    spaceWasSkipped = SkipIfSpace();
+                    // otherwise it starts with a compound selector, which may lead with & or
+                    // be a bare compound selector (relative selector with an implied &).
+                    parsed = ParseNestedCompoundSelector();
+                    if (parsed != Parsed.True)
+                    {
+                        return parsed;
+                    }
                 }
-            }
 
-            return parsed;
+                // continue the complex selector: (combinator compound-selector)*
+                // this mirrors ParseSelector so that whitespace/combinator handling is identical.
+                bool spaceWasSkipped = SkipIfSpace();
+                while (!AtEof)
+                {
+                    Parsed parsedCombinator = ParseCombinator();
+                    if (parsedCombinator != Parsed.True)
+                    {
+                        // the selector ends at a comma, an open brace, or a close paren.
+                        if (CurrentTokenType == TokenType.Character
+                          && (CurrentTokenText == "," || CurrentTokenText == "{" || CurrentTokenText == ")"))
+                        {
+                            break;
+                        }
+                        else if (spaceWasSkipped)
+                        {
+                            // descendant combinator -- retain a single space
+                            Append(' ');
+                        }
+                    }
+
+                    if (ParseNestedCompoundSelector() == Parsed.False)
+                    {
+                        ReportError(0, CssErrorCode.ExpectedSelector, CurrentTokenText);
+                        break;
+                    }
+                    else
+                    {
+                        spaceWasSkipped = SkipIfSpace();
+                    }
+                }
+
+                return parsed;
+            }
+            finally
+            {
+                --m_nestedSelectorDepth;
+            }
         }
 
         // Parses a compound selector that may contain nesting selectors (&) interspersed
@@ -3105,10 +3480,23 @@ namespace NUglify.Css
         Parsed ParseNestedCompoundSelector()
         {
             Parsed parsed = Parsed.False;
-            while (!m_scanner.EndOfFile)
+            var sawNonNestingSelector = false;
+            while (!AtEof)
             {
                 if (CurrentTokenType == TokenType.NestingSelector)
                 {
+                    var next = PeekSignificantTokens(1);
+                    if (!sawNonNestingSelector
+                        && next.Count >= 1
+                        && !WhitespaceSeparatesCurrentAndFirstPeekedSignificant()
+                        && (next[0].TokenType == TokenType.Identifier
+                            || IsCharacterToken(next[0], "*")
+                            || IsCharacterToken(next[0], "|")))
+                    {
+                        ReportError(0, CssErrorCode.ExpectedSelector, CurrentTokenText);
+                        return Parsed.False;
+                    }
+
                     // emit the & verbatim with zero added whitespace
                     AppendCurrent();
                     NextToken();
@@ -3117,6 +3505,7 @@ namespace NUglify.Css
                 else if (ParseSimpleSelector() == Parsed.True)
                 {
                     parsed = Parsed.True;
+                    sawNonNestingSelector = true;
                 }
                 else
                 {
@@ -3132,9 +3521,18 @@ namespace NUglify.Css
         {
             // the element name is optional
             Parsed parsed = ParseElementName();
-            while (!m_scanner.EndOfFile)
+            while (!AtEof)
             {
-                if (CurrentTokenType == TokenType.Hash)
+                if (CurrentTokenType == TokenType.NestingSelector)
+                {
+                    // Outside nested-rule-specific parsing, the nesting selector '&' is still
+                    // valid in selector contexts and behaves like :scope per the nesting spec.
+                    // Preserve the source spelling verbatim rather than rewriting it.
+                    AppendCurrent();
+                    NextToken();
+                    parsed = Parsed.True;
+                }
+                else if (CurrentTokenType == TokenType.Hash)
                 {
                     AppendCurrent();
                     NextToken();
@@ -3448,7 +3846,9 @@ namespace NUglify.Css
                         // the argument of an ANY/MATCHES pseudo function is a selector list,
                         // and Selectors 4 standards say NOT is also a selector list. Selectors 3
                         // says NOT is only a simple selector, but let's go with the later standard
-                        parsed = ParseSelectorList();
+                        parsed = m_nestedSelectorDepth > 0
+                            ? ParseNestedSelectorList()
+                            : ParseSelectorList();
                         if (parsed != Parsed.True)
                         {
                             // TODO: error? shouldn't we ALWAYS have a selector list inside a not()/matches()/any() function?
@@ -3715,7 +4115,7 @@ namespace NUglify.Css
             Parsed parsed = ParseTerm(false);
             if (parsed == Parsed.True)
             {
-                while (!m_scanner.EndOfFile)
+                while (!AtEof)
                 {
                     Parsed parsedOp = ParseOperator();
                     if (parsedOp != Parsed.False)
@@ -3752,7 +4152,7 @@ namespace NUglify.Css
             Parsed parsed = ParseTerm(false);
             if (parsed == Parsed.True)
             {
-                while (!m_scanner.EndOfFile)
+                while (!AtEof)
                 {
                     if (CurrentTokenType == TokenType.Character
                       && CurrentTokenText == "=")
@@ -4481,7 +4881,7 @@ namespace NUglify.Css
                 {
                     int parenLevel = 0;
 
-                    while (!m_scanner.EndOfFile
+                    while (!AtEof
                       && (CurrentTokenType != TokenType.Character
                         || CurrentTokenText != ")"
                         || parenLevel > 0))
@@ -4942,7 +5342,7 @@ namespace NUglify.Css
                 // restore the end-of-line flag that was in effect when this token was scanned,
                 // so callers that read m_scanner.GotEndOfLine right after see the correct value.
                 m_scanner.GotEndOfLine = entry.EndOfLine;
-                return entry.Token;
+                return NormalizePeekedToken(entry.Token, reduceZeros);
             }
 
             return m_scanner.NextToken(reduceZeros);
@@ -5020,7 +5420,7 @@ namespace NUglify.Css
                 m_peekBuffer = null;
             }
 
-            while (significant.Count < count && !m_scanner.EndOfFile)
+            while (significant.Count < count && !AtEof)
             {
                 var token = m_scanner.NextToken(false);
                 consumed.Add(new PeekedToken { Token = token, EndOfLine = m_scanner.GotEndOfLine });
@@ -5034,6 +5434,45 @@ namespace NUglify.Css
                 if (type != TokenType.Space && type != TokenType.Comment)
                 {
                     significant.Add(token);
+
+                    // Replacement tokens are recognized later from a leading '%' plus the
+                    // following raw token stream. If classification peeks only the opening '%'
+                    // (or any truncated prefix), replaying the buffered tokens later desynchronizes
+                    // replacement-token parsing. Once we see a '%' during look-ahead, keep buffering
+                    // through its terminating '%' (or a declaration terminator) so replay always
+                    // has a whole token to work with.
+                    if (IsCharacterToken(token, "%"))
+                    {
+                        while (!AtEof)
+                        {
+                            var continuation = m_scanner.NextToken(false);
+                            consumed.Add(new PeekedToken { Token = continuation, EndOfLine = m_scanner.GotEndOfLine });
+
+                            var continuationType = continuation?.TokenType ?? TokenType.None;
+                            if (continuationType == TokenType.None)
+                                break;
+
+                            if (continuationType != TokenType.Space && continuationType != TokenType.Comment)
+                            {
+                                significant.Add(continuation);
+                            }
+
+                            if (IsCharacterToken(continuation, "%")
+                                || IsCharacterToken(continuation, ";")
+                                || IsCharacterToken(continuation, "}")
+                                || IsCharacterToken(continuation, "{"))
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (IsCharacterToken(token, "{")
+                        || IsCharacterToken(token, ";")
+                        || IsCharacterToken(token, "}"))
+                    {
+                        break;
+                    }
                 }
             }
 
@@ -5164,7 +5603,123 @@ namespace NUglify.Css
 
         void UpdateIfReplacementToken()
         {
-            m_currentToken = m_scanner.ScanReplacementToken() ?? m_currentToken;
+            m_currentToken = TryScanBufferedReplacementToken() ?? m_scanner.ScanReplacementToken() ?? m_currentToken;
+        }
+
+        CssToken TryScanBufferedReplacementToken()
+        {
+            if (m_peekBuffer == null
+                || CurrentTokenType != TokenType.Character
+                || CurrentTokenText != "%")
+            {
+                return null;
+            }
+
+            var buffered = m_peekBuffer.ToArray();
+            if (buffered.Length == 0)
+                return null;
+
+            var builder = StringBuilderPool.Acquire();
+            try
+            {
+                builder.Append('%');
+
+                var index = 0;
+                if (!TryAppendBufferedReplacementName(buffered, ref index, builder))
+                    return null;
+
+                if (index < buffered.Length && IsCharacterToken(buffered[index].Token, ":"))
+                {
+                    builder.Append(':');
+                    ++index;
+
+                    // Empty fallbacks such as %MissingToken:% are valid.
+                    TryAppendBufferedReplacementName(buffered, ref index, builder);
+                }
+
+                if (index >= buffered.Length || !IsCharacterToken(buffered[index].Token, "%"))
+                    return null;
+
+                builder.Append('%');
+                ++index;
+
+                for (var i = 0; i < index; i++)
+                {
+                    m_peekBuffer.Dequeue();
+                }
+
+                if (m_peekBuffer.Count == 0)
+                {
+                    m_peekBuffer = null;
+                }
+
+                return new CssToken(TokenType.ReplacementToken, builder.ToString(), m_currentToken.Context);
+            }
+            finally
+            {
+                builder.Release();
+            }
+        }
+
+        static bool TryAppendBufferedReplacementName(IList<PeekedToken> buffered, ref int index, StringBuilder builder)
+        {
+            if (index >= buffered.Count || buffered[index].Token == null || buffered[index].Token.TokenType != TokenType.Identifier)
+                return false;
+
+            while (index < buffered.Count
+                && buffered[index].Token != null
+                && buffered[index].Token.TokenType == TokenType.Identifier)
+            {
+                builder.Append(buffered[index].Token.Text);
+                ++index;
+
+                if (index < buffered.Count && IsCharacterToken(buffered[index].Token, "."))
+                {
+                    builder.Append('.');
+                    ++index;
+                    continue;
+                }
+
+                break;
+            }
+
+            return true;
+        }
+
+        static CssToken NormalizePeekedToken(CssToken token, bool reduceZeros)
+        {
+            if (!reduceZeros || token == null)
+                return token;
+
+            if (token.TokenType != TokenType.RelativeLength
+                && token.TokenType != TokenType.AbsoluteLength
+                && token.TokenType != TokenType.Speech)
+            {
+                return token;
+            }
+
+            var text = token.Text;
+            if (text.IsNullOrWhiteSpace())
+                return token;
+
+            var numberLength = 0;
+            while (numberLength < text.Length && (char.IsDigit(text[numberLength]) || text[numberLength] == '.'))
+            {
+                ++numberLength;
+            }
+
+            if (numberLength == 0 || numberLength == text.Length)
+                return token;
+
+            var numericText = text.Substring(0, numberLength);
+            for (var i = 0; i < numericText.Length; i++)
+            {
+                var ch = numericText[i];
+                if (ch != '0' && ch != '.')
+                    return token;
+            }
+
+            return new CssToken(TokenType.Number, "0", token.Context);
         }
 
         #endregion
@@ -5279,7 +5834,7 @@ namespace NUglify.Css
             bool possibleSpace = false;
             // skip to next semicolon or next block
             // AND honor opening/closing pairs of (), [], and {}
-            while (!m_scanner.EndOfFile
+            while (!AtEof
                 && (CurrentTokenType != TokenType.Character || CurrentTokenText != ";"))
             {
                 // if the token is one of the characters we need to match closing characters...
@@ -5321,7 +5876,7 @@ namespace NUglify.Css
             bool possibleSpace = false;
             // skip to end of declaration: ; or }
             // BUT honor opening/closing pairs of (), [], and {}
-            while (!m_scanner.EndOfFile
+            while (!AtEof
                 && (CurrentTokenType != TokenType.Character
                   || (CurrentTokenText != ";" && CurrentTokenText != "}")))
             {
@@ -5402,7 +5957,7 @@ namespace NUglify.Css
                 m_skippedSpace = true;
             }
 
-            while (!m_scanner.EndOfFile
+            while (!AtEof
                 && (CurrentTokenType != TokenType.Character || CurrentTokenText != closingText))
             {
                 // if the token is one of the characters we need to match closing characters...

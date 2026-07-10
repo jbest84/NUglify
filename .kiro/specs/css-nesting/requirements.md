@@ -9,13 +9,15 @@ Today the NUglify CSS parser (`CssParser`) treats the body of a declaration bloc
 The core capabilities from the specification that must be supported are:
 
 - The nesting selector `&`, referring to the parent rule's selector.
+- Using `&` in top-level selector contexts, where it is preserved verbatim and behaves per the nesting specification's `:scope` model.
 - Using `&` standalone, in compound selectors (`&.bar`), multiple times in one selector, and in positions other than the start (`.parent &`).
 - Relative nested selectors where a leading `&` is implied when a nested selector begins with a combinator (`> .baz`, `+ .bar`, `~ .qux`) or with a type/class/id/pseudo/attribute selector.
 - Nested selector lists where every selector in the list is relative to the parent.
+- `&` inside selector-list pseudo functions such as `:is(...)`, `:where(...)`, and `:not(...)`, as well as inside nested `@scope` preludes.
 - Doubling the nesting selector (`&&`).
 - Arbitrarily complex parent selectors.
 - Multiple levels of nesting.
-- Nesting inside conditional and grouping at-rules (`@media`, `@supports`, `@layer`, `@scope`).
+- Nesting inside conditional and grouping at-rules (`@media`, `@supports`, `@container`, `@layer`, `@scope`).
 - Correct minification/output of all of the above.
 
 ## Glossary
@@ -45,7 +47,7 @@ The core capabilities from the specification that must be supported are:
 2. WHEN the CSS_Scanner encounters two consecutive unescaped `&` characters in selector text, THE CSS_Scanner SHALL produce exactly two consecutive Nesting_Selector tokens, one per `&` character, with no combined or merged token.
 3. WHEN the CSS_Scanner encounters a Nesting_Selector token immediately adjacent to another selector token with no intervening whitespace (such as `&.bar` or `.parent&`), THE CSS_Scanner SHALL emit the Nesting_Selector token as a separate token from the adjacent token and preserve the absence of whitespace between them.
 4. WHERE a `&` character appears inside a string literal or a comment, THE CSS_Scanner SHALL prioritize the literal context and treat the `&` as part of that string literal or comment rather than as a Nesting_Selector token.
-5. IF the CSS_Scanner encounters an unescaped `&` character in a position where a Nesting_Selector token is not valid (such as within a property declaration value), THEN THE CSS_Scanner SHALL report a scanning error identifying the location of the offending `&` character rather than silently discarding it.
+5. IF the CSS_Scanner encounters an unescaped `&` character in a position where a Nesting_Selector token is not valid for the grammar being parsed (such as within a property declaration value), THEN THE CSS_Scanner SHALL still emit the Nesting_Selector token and the CSS_Parser SHALL report the corresponding parse error identifying the offending `&` character rather than silently discarding it.
 
 ### Requirement 2: Parse nested style rules within a declaration block
 
@@ -60,9 +62,9 @@ The core capabilities from the specification that must be supported are:
 5. IF a construct encountered WHILE parsing a Declaration_Block matches neither a valid declaration nor a valid Nested_Rule, THEN THE CSS_Parser SHALL report a parse error identifying the offending token by its source position and SHALL reject the enclosing rule rather than emit partial output for that Declaration_Block.
 6. IF the CSS_Parser reaches the end of input while a Nested_Rule's Declaration_Block remains unterminated by a closing brace, THEN THE CSS_Parser SHALL report a parse error identifying the source position of the unterminated Declaration_Block rather than emit the incomplete Nested_Rule.
 
-### Requirement 3: Support the nesting selector in all valid positions
+### Requirement 3: Support the nesting selector in valid selector positions
 
-**User Story:** As a developer, I want `&` to be usable standalone, within compound selectors, multiple times, and in non-leading positions, so that all nesting patterns from the specification are supported.
+**User Story:** As a developer, I want `&` to be usable anywhere the nesting specification allows it in selector syntax, including top-level selector contexts, so that all supported nesting patterns parse consistently.
 
 #### Acceptance Criteria
 
@@ -71,7 +73,9 @@ The core capabilities from the specification that must be supported are:
 3. WHEN a Nested_Selector contains the Nesting_Selector two or more times, such as `& + &`, THE CSS_Parser SHALL parse the Nested_Rule and emit every occurrence of `&` in the same source order and with the same Combinators between occurrences as in the source.
 4. WHEN a Nested_Selector places `&` after another selector, such as `.parent &`, THE CSS_Parser SHALL parse the Nested_Rule and emit `&` after the other selector, preserving the Combinator that separates them (a single space for a descendant Combinator, and the exact `>`, `+`, or `~` token for other Combinators).
 5. WHEN a Nested_Selector contains two consecutive Nesting_Selectors (`&&`), THE CSS_Parser SHALL parse the Nested_Rule and emit both Nesting_Selectors adjacently with zero whitespace characters between them.
-6. IF a Nesting_Selector appears in a position where a selector is not permitted, such as within a declaration value, THEN THE CSS_Parser SHALL fail parsing and report a parse error identifying the offending token rather than emit the Nesting_Selector.
+6. WHEN a selector outside a Nested_Rule uses a standalone or compound Nesting_Selector such as `&`, `&:hover`, or `:is(&,.foo)`, THE CSS_Parser SHALL parse and emit the selector verbatim rather than rewriting it to `:scope`.
+7. WHEN a Nested_Selector or selector-list pseudo function contains `&` inside `:is(...)`, `:where(...)`, or `:not(...)`, THE CSS_Parser SHALL parse and emit the Nesting_Selector in source order with the same surrounding selector structure.
+8. IF a Nesting_Selector appears in a position where a selector is not permitted, such as within a declaration value or immediately before a type selector token with no valid compound-selector interpretation, THEN THE CSS_Parser SHALL fail parsing and report a parse error identifying the offending token rather than emit the Nesting_Selector.
 
 ### Requirement 4: Support relative nested selectors with an implied leading nesting selector
 
@@ -112,16 +116,18 @@ The core capabilities from the specification that must be supported are:
 
 ### Requirement 7: Support nesting inside at-rules
 
-**User Story:** As a developer, I want nesting to work inside conditional and grouping at-rules, so that I can nest style rules within `@media`, `@supports`, `@layer`, and `@scope` blocks.
+**User Story:** As a developer, I want nesting to work inside conditional and grouping at-rules, so that I can nest style rules within `@media`, `@supports`, `@container`, `@layer`, and `@scope` blocks.
 
 #### Acceptance Criteria
 
-1. WHEN a style rule inside an At_Rule_Block for `@media` or `@supports` contains Nested_Rules, THE CSS_Parser SHALL parse the Nested_Rules within that style rule.
+1. WHEN a style rule inside an At_Rule_Block for `@media`, `@supports`, or `@container` contains Nested_Rules, THE CSS_Parser SHALL parse the Nested_Rules within that style rule.
 2. WHEN an At_Rule_Block for `@layer` or `@scope` contains style rules with Nested_Rules, THE CSS_Parser SHALL parse the Nested_Rules within those style rules.
-3. WHEN a Nested_Rule appears directly inside a Parent_Rule and its body is an at-rule that is one of `@media`, `@supports`, `@layer`, or `@scope`, THE CSS_Parser SHALL parse the nested at-rule and the style rules within it.
-4. WHEN the CSS_Parser emits Nested_Rules that appear inside an At_Rule_Block, in both Minified_Output and Pretty_Output, THE CSS_Parser SHALL preserve the containment of those Nested_Rules within the braces of that At_Rule_Block.
-5. WHEN a Nested_Rule whose body is one of the at-rules `@media`, `@supports`, `@layer`, or `@scope` itself contains style rules with further Nested_Rules, THE CSS_Parser SHALL parse each level of nesting to the depth present in the source and preserve the containment of each Nested_Rule within its enclosing block.
-6. IF, while parsing an At_Rule_Block that contains Nested_Rules, the CSS_Parser reaches the end of input before the At_Rule_Block's closing brace, or encounters a construct matching neither a valid declaration, a valid style rule, nor a valid nested at-rule, THEN THE CSS_Parser SHALL report a parse error identifying the offending token rather than emit partial or flattened output.
+3. WHEN a Nested_Rule appears directly inside a Parent_Rule and its body is an at-rule that is one of `@media`, `@supports`, `@container`, `@layer`, or `@scope`, THE CSS_Parser SHALL parse the nested at-rule and the style rules within it.
+4. WHEN a nested `@media`, `@supports`, or `@container` block contains declarations directly in its body, THE CSS_Parser SHALL preserve those declarations in source order alongside any nested style rules.
+5. WHEN a nested `@scope` prelude contains selectors that use `&`, including `@scope (&)` and `@scope (& > .scope) to (& .limit)`, THE CSS_Parser SHALL parse and emit those selectors in the prelude.
+6. WHEN the CSS_Parser emits Nested_Rules that appear inside an At_Rule_Block, in both Minified_Output and Pretty_Output, THE CSS_Parser SHALL preserve the containment of those Nested_Rules within the braces of that At_Rule_Block.
+7. WHEN a Nested_Rule whose body is one of the at-rules `@media`, `@supports`, `@container`, `@layer`, or `@scope` itself contains style rules with further Nested_Rules, THE CSS_Parser SHALL parse each level of nesting to the depth present in the source and preserve the containment of each Nested_Rule within its enclosing block.
+8. IF, while parsing an At_Rule_Block that contains Nested_Rules, the CSS_Parser reaches the end of input before the At_Rule_Block's closing brace, or encounters a construct matching neither a valid declaration, a valid style rule, nor a valid nested at-rule, THEN THE CSS_Parser SHALL report a parse error identifying the offending token rather than emit partial or flattened output.
 
 ### Requirement 8: Emit correct minified output for nested rules
 

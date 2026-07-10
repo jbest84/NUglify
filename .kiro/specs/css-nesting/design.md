@@ -5,7 +5,7 @@
 This design adds support for [CSS Nesting Module Level 1](https://www.w3.org/TR/css-nesting-1/) to NUglify's CSS pipeline. The work touches two components:
 
 - **`CssScanner`** — must recognize the `&` nesting selector and emit it as a distinct token instead of falling through to a generic `Character` token.
-- **`CssParser`** — must recognize style rules nested inside a declaration block, mixing declarations and nested rules in source order, support `&` in all valid positions, relative nested selectors (implied leading `&`), nested selector lists, arbitrary depth, and nesting inside `@media`, `@supports`, `@layer`, and `@scope`.
+- **`CssParser`** — must recognize style rules nested inside a declaration block, mixing declarations and nested rules in source order, support `&` in all valid selector positions including top-level selector contexts, relative nested selectors (implied leading `&`), nested selector lists, arbitrary depth, and nesting inside `@media`, `@supports`, `@container`, `@layer`, and `@scope`.
 
 The guiding constraint (Requirement 9) is that **non-nested input must be byte-for-byte identical** to today's output in both minified and pretty modes, and must produce the same error set. This heavily shapes the design: nesting support is added as *additional branches* on top of the existing recursive-descent parser and streaming output model, rather than a rewrite. The parser continues to emit output by streaming tokens into a stack of `StringBuilder` "waypoints" as it recognizes constructs; nested rules reuse the exact same emission helpers (`ParseSelector`, `ParseDeclarationBlock`, `NewLine`, `Indent`, `Append`) that non-nested rules use.
 
@@ -21,7 +21,7 @@ Key findings from reading the existing implementation that inform this design:
 
 4. **Rules and selectors already exist and are reusable.** `ParseRule` → `ParseSelector`/`ParseSelectorList` → `ParseSimpleSelector` → `ParseElementName`/`ParseClass`/`ParseAttrib`/`ParsePseudo`, plus `ParseCombinator`. A nested rule is structurally a selector list followed by a declaration block, so we can largely reuse `ParseDeclarationBlock` and the selector machinery, adding only `&` handling and relative-selector handling.
 
-5. **At-rule blocks each have their own rule loop.** `ParseMedia` and `ParseSupports` contain their own `while (ParseRule() || ParseMedia() || ...)` loops for their block bodies. `@layer` and `@scope` are **not** currently recognized as symbols — the scanner has no `LAYER`/`SCOPE` cases in `ScanAtKeyword`, so they become generic `TokenType.AtKeyword` tokens and `ParseAtKeyword` just calls `SkipToEndOfStatement`. Supporting nesting inside `@layer`/`@scope` (Requirement 7.2) therefore requires adding real parsing for those at-rules.
+5. **At-rule blocks each have their own rule loop.** `ParseMedia` and `ParseSupports` contain their own `while (ParseRule() || ParseMedia() || ...)` loops for their block bodies. `@container`, `@layer`, and `@scope` need the same treatment so nested rules and direct declarations inside those bodies are handled consistently.
 
 6. **Error handling is via `ReportError` + skip/recover helpers** (`SkipToEndOfStatement`, `SkipToEndOfDeclaration`, `SkipToClose`) and the `CssErrorCode` enum. New nesting errors reuse existing codes where possible and add a small number of new ones.
 
@@ -42,7 +42,7 @@ flowchart TD
         PDecl[ParseDeclaration]
         PNested[ParseNestedRule NEW]
         PSel[ParseSelectorList / ParseSelector]
-        PAt[ParseMedia / ParseSupports / ParseLayer NEW / ParseScope NEW]
+        PAt[ParseMedia / ParseSupports / ParseContainer NEW / ParseLayer NEW / ParseScope NEW]
 
         PStyle --> PRule
         PStyle --> PAt
@@ -64,7 +64,7 @@ The central new decision point is inside the declaration-block body (`ParseDecla
 
 - a **declaration** (`property : value ;`), handled by the existing `ParseDeclaration`;
 - a **nested style rule** (a selector — possibly relative/`&`-prefixed — followed by `{`), handled by new `ParseNestedRule`;
-- a **nested at-rule** (`@media`/`@supports`/`@layer`/`@scope` followed by its prelude and `{`), handled by the at-rule parsers.
+- a **nested at-rule** (`@media`/`@supports`/`@container`/`@layer`/`@scope` followed by its prelude and `{`), handled by the at-rule parsers.
 
 ### Classification strategy (declaration vs nested rule)
 
@@ -72,7 +72,7 @@ Because the parser is single-pass and streaming, it cannot freely backtrack afte
 
 1. Peek at the first non-space token of the item.
 2. If it is `NestingSelector` (`&`), or a `Combinator` character (`>`, `+`, `~`), the item is unambiguously a nested rule (declarations never start with these). Route to `ParseNestedRule`.
-3. If it is one of the recognized at-rule symbols (`MediaSymbol`, `Supports`, `LayerSymbol`, `ScopeSymbol`), route to the corresponding at-rule parser (nested at-rule).
+3. If it is one of the recognized at-rule symbols (`MediaSymbol`, `Supports`, `ContainerSymbol`, `LayerSymbol`, `ScopeSymbol`), route to the corresponding at-rule parser (nested at-rule).
 4. If it is an `Identifier`, the item is ambiguous (`color: red;` vs `color { ... }` — the latter being a nested type-selector rule). Parse into a buffered waypoint far enough to find the disambiguating token:
    - a `:` that is part of a declaration's `property:value` (not a pseudo-class `:` — pseudo only appears after a selector, and a leading identifier followed immediately by `:` at block-body position is a property) → **declaration**;
    - a `{` (after a compound/complex selector) → **nested rule**;
@@ -80,7 +80,7 @@ Because the parser is single-pass and streaming, it cannot freely backtrack afte
    Emit the buffered text into the chosen sub-parser's stream so no output is lost or reordered.
 5. Any other leading token that begins a valid compound selector (`.`, `#`, `[`, `:`, `*`) with no property-name interpretation is a relative nested rule → `ParseNestedRule` (Requirement 4.2).
 
-To keep Requirement 9 (byte-for-byte non-nested output) safe, the ambiguous-identifier path is written so that when the item resolves to a **declaration**, the tokens are handed to the *unmodified* `ParseDeclaration` logic and produce identical output to today. The lookahead only changes behavior when a `{` (nested rule) is discovered.
+To keep Requirement 9 (byte-for-byte non-nested output) safe, the ambiguous-identifier path is written so that when the item resolves to a **declaration**, the tokens are handed to the *unmodified* `ParseDeclaration` logic and produce identical output to today. The lookahead only changes behavior when a `{` (nested rule) is discovered. The normal selector parser is also extended to accept `TokenType.NestingSelector` in non-nested selector contexts so top-level selectors such as `&`, `&:hover`, and `:is(&,.foo)` are preserved verbatim instead of being rewritten.
 
 ### Preserving source order
 
@@ -123,28 +123,29 @@ Parsed ParseNestedRule()
 **New methods `ParseNestedSelectorList` / `ParseNestedSelector`.** Wrap the existing selector machinery, adding two behaviors:
 - **`&` handling:** when the current token is `NestingSelector`, append `&` and continue the compound/complex selector using existing `ParseSimpleSelector`/`ParseCombinator`. `&` may appear standalone (3.1), joined (`&.bar`, `&:hover`) with zero added whitespace (3.2), multiple times (`& + &`) preserving combinators (3.3), after another selector (`.parent &`) (3.4), and doubled (`&&`) with zero whitespace (3.5).
 - **Relative selectors:** if a nested selector begins with a combinator (`>`, `+`, `~`) or a bare compound selector, it is accepted as-is with an *implied* leading `&`. The parser does **not** insert an explicit `&` into the output (Requirement 4.3/4.4) — it emits exactly what was written.
+- **Selector-list pseudo functions:** while parsing a nested selector, pseudo functions whose arguments are selector lists (`:is`, `:where`, `:not`, and existing selector-list pseudos) recurse back into `ParseNestedSelectorList` so `&` remains valid inside those argument lists.
 
 **Modify the block-body loop** (currently `ParseDeclarationList`). Introduce the classification described in the Architecture section. Rename the shared body loop or add an internal helper (e.g. `ParseBlockBody`) that `ParseDeclarationBlock` calls; when `CssType.DeclarationList` is used at the top level, the same loop applies so top-level declaration lists can also contain nested rules if a selector appears. The existing declaration-only fast path is retained for byte-for-byte fidelity.
 
-**At-rule support inside blocks.** The block-body loop also recognizes nested at-rules (`@media`, `@supports`, `@layer`, `@scope`) and routes them to their parsers (Requirement 7.3). `ParseMedia`/`ParseSupports` already contain rule loops; those loops already call `ParseRule`, which will now recurse into nested rules, so nesting inside `@media`/`@supports` works once `ParseRule`/`ParseNestedRule` support `&` (Requirement 7.1).
+**At-rule support inside blocks.** The block-body loop also recognizes nested at-rules (`@media`, `@supports`, `@container`, `@layer`, `@scope`) and routes them to their parsers (Requirement 7.3). `ParseMedia`/`ParseSupports` already contain rule loops; those loops, along with the new shared grouping-body path used by `@container`, `@layer`, and `@scope`, recurse into nested rules and preserve direct declarations in source order (Requirement 7.1).
 
-**New methods `ParseLayer` and `ParseScope`.** `@layer` and `@scope` are not parsed today. Add:
-- Scanner: recognize `LAYER` and `SCOPE` in `ScanAtKeyword`, adding `LayerSymbol` and `ScopeSymbol` token types. (`@layer name;` statement form and `@layer name { ... }` block form; `@scope (start) to (end) { ... }`.)
-- Parser: `ParseLayer`/`ParseScope` parse the prelude then, for the block form, run the same `while (ParseRule() || ParseMedia() || ... )` body loop used by `@media`/`@supports`, so contained style rules (and their nested rules) parse correctly (Requirement 7.2/7.5). These are added to the stylesheet-level and block-level dispatch chains.
+**New methods `ParseContainer`, `ParseLayer`, and `ParseScope`.** Add:
+- Scanner: recognize `CONTAINER`, `LAYER`, and `SCOPE` in `ScanAtKeyword`, adding `ContainerSymbol`, `LayerSymbol`, and `ScopeSymbol` token types.
+- Parser: `ParseContainer` preserves the prelude text with minified spacing and then runs the shared grouping-at-rule body loop for the block form. `ParseLayer` and `ParseScope` do the same, with `ParseScope` additionally allowing nested-selector parsing inside its prelude so forms such as `@scope (&)` and `@scope (& > .scope) to (& .limit)` are retained. These are added to the stylesheet-level and block-level dispatch chains.
 
-> Note: adding real `@layer`/`@scope` parsing changes behavior for input that previously fell through to the generic `AtKeyword` skip path. This is new functionality (those inputs did not use nesting), so Requirement 9's guarantee — scoped to input with *no* nesting selector and *no* nested rules — is preserved. Existing tests that exercise `@layer`/`@scope` pass-through, if any, will be reviewed and updated as part of implementation.
+> Note: adding real `@container`/`@layer`/`@scope` parsing changes behavior for input that previously fell through to the generic `AtKeyword` skip path. This is new functionality, so Requirement 9's guarantee remains scoped to inputs that do not rely on these new nesting-aware branches.
 
 ### Interface summary
 
 | Method | Status | Responsibility |
 |---|---|---|
-| `CssScanner.NextToken` | modified | Emit `NestingSelector` for `&`; recognize `@layer`/`@scope` |
+| `CssScanner.NextToken` | modified | Emit `NestingSelector` for `&`; recognize `@container`/`@layer`/`@scope` |
 | `ParseBlockBody` (was `ParseDeclarationList`) | modified | Per-item classify: declaration / nested rule / nested at-rule |
 | `ParseNestedRule` | new | Parse a nested style rule inside a block |
 | `ParseNestedSelectorList` / `ParseNestedSelector` | new | Parse `&`, relative, and list selectors |
 | `ParseDeclaration` | unchanged | Declarations (fidelity path) |
 | `ParseDeclarationBlock` | reused | Braces + recursion into block body |
-| `ParseLayer` / `ParseScope` | new | At-rule prelude + block body loop |
+| `ParseContainer` / `ParseLayer` / `ParseScope` | new | At-rule prelude + block body loop |
 | `ParseMedia` / `ParseSupports` | minor | Already loop over `ParseRule`; benefit from nested `&` |
 
 ## Data Models
@@ -161,6 +162,7 @@ classDiagram
     class TokenType {
         <<enum>>
         NestingSelector
+        ContainerSymbol
         LayerSymbol
         ScopeSymbol
         ...existing...
@@ -251,9 +253,9 @@ CSS minification is a text-to-text transformation over a large, structured input
 
 ### Property 10: At-rule containment is preserved
 
-*For any* nested rules contained within an `@media`, `@supports`, `@layer`, or `@scope` block, the output keeps those nested rules inside the braces of that at-rule block in both minified and pretty output.
+*For any* nested rules contained within an `@media`, `@supports`, `@container`, `@layer`, or `@scope` block, the output keeps those nested rules inside the braces of that at-rule block in both minified and pretty output, preserving direct declarations in those bodies in source order.
 
-**Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5**
+**Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7**
 
 ### Property 11: Minified output whitespace invariants
 
@@ -279,7 +281,7 @@ Error handling reuses the existing `ReportError` + skip/recover machinery. Error
 
 | Condition | Requirement | Handling |
 |---|---|---|
-| `&` in an invalid position (e.g. inside a declaration value) | 1.5, 3.6 | `ParseDeclaration`/`ParseExpr` encounters `NestingSelector` where a term is expected → `ReportError(0, ...)` identifying the token, then `SkipToEndOfDeclaration`. A new `CssErrorCode.UnexpectedNestingSelector` is added. |
+| `&` in an invalid position (e.g. inside a declaration value) | 1.5, 3.8 | `ParseDeclaration`/`ParseExpr` encounters `NestingSelector` where a term is expected → `ReportError(0, ...)` identifying the token, then `SkipToEndOfDeclaration`. A new `CssErrorCode.UnexpectedNestingSelector` is added. |
 | Block-body item matches neither declaration nor nested rule | 2.5 | `ReportError` with token position; reject the enclosing rule (discard its waypoint) rather than emit partial output. Reuses `ExpectedSelector`/`UnexpectedToken`. |
 | Unterminated nested block at EOF | 2.6, 6.5, 7.6 | Existing `ParseDeclarationBlock` EOF branch reports `CssErrorCode.UnexpectedEndOfFile` with the block's start position. |
 | Leading combinator not followed by a valid compound selector | 4.5 | `ParseNestedSelector` reports `ExpectedSelector` at the offending token and fails the rule. |
@@ -310,11 +312,12 @@ Property 13 is implemented by generating random *non-nested* CSS and asserting t
 Concrete tests in `src/NUglify.Tests/Css/Nesting.cs` covering the specification's canonical examples, following the existing test conventions in the `Css` test folder (input string → expected minified/pretty output):
 
 - Standalone `&`, `&.bar`, `& + &`, `.parent &`, `&&`.
+- Top-level selector-context `&` cases such as `&`, `&:hover`, and `:is(&,.foo)`.
 - Relative selectors: `> .baz`, `+ .bar`, `~ .qux`, and bare `.child { ... }`.
-- Nested selector lists: `&:hover, &:focus { ... }`.
+- Nested selector lists: `&:hover, &:focus { ... }`, plus `&` inside `:is(...)`, `:where(...)`, and `:not(...)`.
 - Mixed declarations and nested rules in source order, and a declaration immediately after a nested rule's closing brace.
 - Deep nesting (a few explicit levels) and a generated 64+-level case.
-- Nesting inside `@media`, `@supports`, `@layer`, `@scope`.
+- Nesting inside `@media`, `@supports`, `@container`, `@layer`, `@scope`, including direct declarations in nested group-rule bodies and `&` in nested `@scope` preludes.
 - Pretty-mode indentation of nested rules.
 - `RemoveEmptyBlocks` dropping empty nested rules and empty parents.
 

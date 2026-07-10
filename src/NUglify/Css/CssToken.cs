@@ -192,6 +192,7 @@ namespace NUglify.Css
 
         // CSS Nesting (W3C CSS Nesting Module Level 1)
         NestingSelector,
+        ContainerSymbol,
         LayerSymbol,
         ScopeSymbol,
 
