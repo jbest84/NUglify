@@ -567,6 +567,53 @@ var func2 = function () {
         }
 
         [Test]
+        public void Bug431()
+        {
+            var result = Uglify.Js(@"
+var actions = {
+    GOSUB: {
+        action: function () {
+            if (vidData.inputGrids.length != 0 && options[BC_const.CUSTOM_PROP.ValidaDati] == BC_const.VALIDA_DATI.Oggetto) {
+                var actionState = {};
+                let currentGrid;
+                $(vidData.inputGrids).each(function () {
+                    var gridName = this, grid = $('#'+gridName+'_grid', $videata);
+                    let pageGrid = $videata.find('#' + gridName);
+                    grid[0].ej2_instances[0].isEdit && (currentGrid = grid);
+                });
+                currentGrid ? (
+                    actionState = function () {
+                        let deferred = new $.Deferred;
+                        return options.actionId
+                            ? (
+                                currentGrid.Wrapper().addDOMMethod(BC_const.EVENTS.GridRowSaved, function (success) {
+                                    success ? deferred.resolve() : deferred.reject();
+                                }),
+                                currentGrid.Wrapper().callDOMMethod(BC_const.EVENTS.GridOutRiga)
+                            )
+                            : deferred.resolve(),
+                            deferred.promise();
+                    },
+                    actionState().then(function () {
+                        options.AMBITO && options.AMBITO.TIPO === BC_const.RIBBONBAR_BUTTON_AMBITO_TIPO.GrigliaNuovaRiga
+                            && currentGrid.Wrapper().callDOMMethod(BC_const.EVENTS.GridNewRowPage);
+                        $(container).Sistemi().goSub(options);
+                    })
+                ) : $(container).Sistemi().goSub(options);
+            } else {
+                $(container).Sistemi().goSub(options);
+            }
+        }
+    }
+};");
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Does.Contain("var n={};let t;"));
+            Assert.That(result.Code, Does.Not.Contain("var t,n;"));
+        }
+
+        [Test]
         public void Bug421()
         {
             var result = Uglify.Js("class Test{'allow-cache'(){}}");

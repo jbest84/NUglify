@@ -937,6 +937,11 @@ namespace NUglify.JavaScript.Syntax
                         }
                     }
 
+                    foreach (var localField in localFields)
+                    {
+                        AddLexicalNamesFromContainingScopes(avoidSet, localField);
+                    }
+
                     var crunchEnum = new CrunchEnumerator(avoidSet);
                     foreach (var localField in localFields)
                     {
@@ -959,6 +964,61 @@ namespace NUglify.JavaScript.Syntax
             {
                 scope.AutoRenameFields();
             }
+        }
+
+        static void AddLexicalNamesFromContainingScopes(HashSet<string> avoidSet, JSVariableField localField)
+        {
+            if (avoidSet == null || localField == null)
+            {
+                return;
+            }
+
+            foreach (var declaration in localField.Declarations)
+            {
+                for (var ancestor = declaration as AstNode; ancestor != null; ancestor = ancestor.Parent)
+                {
+                    var scope = GetContainingLexicalScope(ancestor);
+                    if (scope != null && scope.VarDeclaredName(localField.Name) != null)
+                    {
+                        foreach (var lexDecl in scope.LexicallyDeclaredNames)
+                        {
+                            avoidSet.Add(lexDecl.VariableField.IfNotNull(f => f.ToString()) ?? lexDecl.Name);
+                        }
+                    }
+                }
+            }
+        }
+
+        static ActivationObject GetContainingLexicalScope(AstNode ancestor)
+        {
+            if (ancestor is BlockStatement block
+                && block.EnclosingScope != null
+                && block.EnclosingScope.ScopeType == ScopeType.Lexical)
+            {
+                return block.EnclosingScope;
+            }
+
+            if (ancestor is SwitchStatement switchStatement)
+            {
+                return switchStatement.BlockScope;
+            }
+
+            if (ancestor is ForStatement forStatement)
+            {
+                return forStatement.BlockScope;
+            }
+
+            if (ancestor is ForInStatement forInStatement)
+            {
+                return forInStatement.BlockScope;
+            }
+
+            if (ancestor is ComprehensionNode comprehension)
+            {
+                return comprehension.BlockScope;
+            }
+
+            return null;
         }
 
         internal IEnumerable<JSVariableField> GetUncrunchedLocals()
