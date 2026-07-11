@@ -885,6 +885,18 @@ namespace NUglify.Css
                 }
             }
 
+            if (CurrentTokenType == TokenType.Function)
+            {
+                if (ParseSupportsFeature() == Parsed.True)
+                {
+                    foundSupportsCondition = true;
+                }
+                else
+                {
+                    return Parsed.False;
+                }
+            }
+
             if (CurrentTokenType == TokenType.Character && CurrentTokenText == "(")
             {
                 AppendCurrent();
@@ -896,6 +908,20 @@ namespace NUglify.Css
                 if (CurrentTokenType == TokenType.Identifier)
                 {
                     if (ParseDeclaration() == Parsed.True)
+                    {
+                        foundSupportsCondition = true;
+                        SkipIfSpace();
+                        if (CurrentTokenType == TokenType.Character && CurrentTokenText == ")")
+                        {
+                            AppendCurrent();
+                            SkipSpace();
+                            ParseSupportsCondition(false, true);
+                        }
+                    }
+                }
+                else if (CurrentTokenType == TokenType.Function)
+                {
+                    if (ParseSupportsFeature() == Parsed.True)
                     {
                         foundSupportsCondition = true;
                         SkipIfSpace();
@@ -929,6 +955,39 @@ namespace NUglify.Css
             }
 
             return foundSupportsCondition ? Parsed.True : Parsed.False;
+        }
+
+        Parsed ParseSupportsFeature()
+        {
+            if (CurrentTokenType != TokenType.Function)
+            {
+                return Parsed.False;
+            }
+
+            var functionText = GetRoot(CurrentTokenText);
+            if (!string.Equals(functionText, "selector(", StringComparison.OrdinalIgnoreCase))
+            {
+                return Parsed.False;
+            }
+
+            AppendCurrent();
+            SkipSpace();
+
+            if (ParseSelectorList() != Parsed.True)
+            {
+                ReportError(0, CssErrorCode.ExpectedSelector, CurrentTokenText);
+                return Parsed.False;
+            }
+
+            if (CurrentTokenType == TokenType.Character && CurrentTokenText == ")")
+            {
+                AppendCurrent();
+                SkipSpace();
+                return Parsed.True;
+            }
+
+            ReportError(0, CssErrorCode.UnexpectedToken, CurrentTokenText);
+            return Parsed.False;
         }
 
         Parsed ParseSupportsOperator(bool notOperatorAllowed, bool andOrOperatorsNeeded)
@@ -990,6 +1049,14 @@ namespace NUglify.Css
                         notOperatorAllowed = true;
                     }
                     else
+                    {
+                        ReportError(0, CssErrorCode.UnexpectedToken, CurrentTokenText);
+                        return Parsed.False;
+                    }
+                }
+                else if (CurrentTokenType != TokenType.Character || CurrentTokenText != "(")
+                {
+                    if (CurrentTokenType != TokenType.Function)
                     {
                         ReportError(0, CssErrorCode.UnexpectedToken, CurrentTokenText);
                         return Parsed.False;
