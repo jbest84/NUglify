@@ -242,5 +242,42 @@ test
 			var htmlToText = Uglify.Html(input, settings);
 			equal(htmlToText.Code, "<a hx-boost=true></a>");
 		}
+
+		[Test]
+		public void Bug420_CustomPropertiesStartingWithDigitsArePreservedInPrettyHtml()
+		{
+			input = @"<!DOCTYPE html>
+<html lang=""en"">
+<head>
+    <meta charset=""UTF-8"">
+    <title>Document</title>
+</head>
+<body>
+    <div style=""--9c00fd5c:red;"">
+        <div style=""color: var(--9c00fd5c);"">font color</div>
+    </div>
+</body>
+</html>";
+
+			var settings = HtmlSettings.Pretty();
+			settings.Indent = "\t";
+
+			equal(minify(input, settings), @"<!DOCTYPE html>
+<html lang=""en"">
+	<head>
+		<meta charset=""UTF-8"" />
+		<title>
+			Document
+		</title>
+	</head>
+	<body>
+		<div style=""--9c00fd5c: red;"">
+			<div style=""color: var(--9c00fd5c);"">
+				font color
+			</div>
+		</div>
+	</body>
+</html>");
+		}
     }
 }
