@@ -185,6 +185,14 @@ namespace NUglify.JavaScript.Syntax
                 }
                 else if ((property = binding.Parent as ObjectLiteralProperty) != null)
                 {
+                    // In object binding patterns with a rest element, earlier properties participate
+                    // in the exclusion set for the rest object even if their bound locals are unused.
+                    // Keep the property in the pattern so object rest semantics stay intact.
+                    if (HasObjectRestSibling(property))
+                    {
+                        return false;
+                    }
+
                     // delete the property from the list of properties after saving the list of properties for later
                     nodeList = property.Parent as AstNodeList;
                     deleted = property.Parent.ReplaceChild(property, null);
@@ -269,6 +277,27 @@ namespace NUglify.JavaScript.Syntax
             }
 
             return deleted;
+        }
+
+        static bool HasObjectRestSibling(ObjectLiteralProperty property)
+        {
+            var propertyList = property?.Parent as AstNodeList;
+            if (!(propertyList?.Parent is ObjectLiteral))
+            {
+                return false;
+            }
+
+            foreach (var sibling in propertyList)
+            {
+                if (sibling is ObjectLiteralProperty siblingProperty
+                    && siblingProperty.Value is UnaryExpression unaryExpression
+                    && unaryExpression.OperatorToken == JSToken.RestSpread)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public static void RemoveBinding(AstNode binding)

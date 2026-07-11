@@ -778,6 +778,29 @@ var actions = {
             Assert.That(result.Code, Is.EqualTo("$m=(n,t,i)=>{const{uid:r=t,...u}=i}"));
         }
 
+        [Test]
+        public void Bug390()
+        {
+            var result = Uglify.Js(@"
+const func = () => {
+    const user = {
+        avatar: Date(),
+        timeline: Date(),
+        backup: Date(),
+        id: 123,
+        name: 'Roman',
+    };
+    const { avatar, timeline, backup, ...copy } = user;
+    return copy;
+};
+console.log(func());
+");
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("const func=()=>{const n={avatar:Date(),timeline:Date(),backup:Date(),id:123,name:\"Roman\"},{avatar:i,timeline:r,backup:u,...t}=n;return t};console.log(func())"));
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);
