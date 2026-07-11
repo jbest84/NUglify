@@ -485,6 +485,33 @@ function init() {
         {
             TestHelper.Instance.RunErrorTest();
         }
+
+        [Test]
+        public void Bug405()
+        {
+            var result = Uglify.Js(@"
+(function(){
+    var v1 = true;
+    function someFunction() {
+        if (true) {
+            myFunction();
+            function myFunction() {
+            }
+        }
+        function otherFunction() {
+            console.log({v1});
+        }
+        otherFunction();
+    }
+    someFunction();
+})();");
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Does.Contain("console.log({v1:n})"));
+            Assert.That(result.Code, Does.Contain("if(1){i();function i(){}}"));
+            Assert.That(result.Code, Does.Not.Contain("if(1){n();function n(){}}"));
+        }
       
         public void Bug429()
         {
