@@ -70,6 +70,105 @@ namespace NUglify.JavaScript.Visitors
             }
         }
 
+        static AstNode ReplaceWithLiteralPreservingOperandEvaluation(BinaryExpression node, bool value)
+        {
+            AstNode replacement = new ConstantWrapper(value, PrimitiveType.Boolean, node.Context);
+
+            if (!ShouldPreserveForParent(node))
+            {
+                return replacement;
+            }
+
+            // Preserve any operand evaluations that still need to happen even when the
+            // comparison outcome is known from the operand types.
+            if (ShouldPreserveEvaluation(node.Operand2))
+            {
+                replacement = CommaExpression.CombineWithComma(node.Operand2.Context.FlattenToStart(), node.Operand2, replacement);
+            }
+
+            if (ShouldPreserveEvaluation(node.Operand1))
+            {
+                replacement = CommaExpression.CombineWithComma(node.Operand1.Context.FlattenToStart(), node.Operand1, replacement);
+            }
+
+            return replacement;
+        }
+
+        static bool ShouldPreserveForParent(BinaryExpression node)
+        {
+            AstNode parent = node.Parent;
+            while (parent is GroupingOperator)
+            {
+                parent = parent.Parent;
+            }
+
+            var parentBinary = parent as BinaryExpression;
+            if (parentBinary != null)
+            {
+                return parentBinary.OperatorToken == JSToken.LogicalAnd
+                    || parentBinary.OperatorToken == JSToken.LogicalOr
+                    || parentBinary.OperatorToken == JSToken.NullishCoalesce;
+            }
+
+            return parent is Conditional;
+        }
+
+        static bool ShouldPreserveEvaluation(AstNode node)
+        {
+            if (node == null || node.IsConstant)
+            {
+                return false;
+            }
+
+            if (node is CallExpression)
+            {
+                return true;
+            }
+
+            var unary = node as UnaryExpression;
+            if (unary != null)
+            {
+                switch (unary.OperatorToken)
+                {
+                    case JSToken.Delete:
+                    case JSToken.Increment:
+                    case JSToken.Decrement:
+                        return true;
+
+                    default:
+                        return ShouldPreserveEvaluation(unary.Operand);
+                }
+            }
+
+            var binary = node as BinaryExpression;
+            if (binary != null)
+            {
+                if (binary.OperatorToken == JSToken.Assign)
+                {
+                    return true;
+                }
+
+                return binary.OperatorToken == JSToken.Comma
+                    && (ShouldPreserveEvaluation(binary.Operand1) || ShouldPreserveEvaluation(binary.Operand2));
+            }
+
+            var grouping = node as GroupingOperator;
+            if (grouping != null)
+            {
+                return ShouldPreserveEvaluation(grouping.Operand);
+            }
+
+            var conditional = node as Conditional;
+            if (conditional != null)
+            {
+                return ShouldPreserveEvaluation(conditional.Condition)
+                    || ShouldPreserveEvaluation(conditional.TrueExpression)
+                    || ShouldPreserveEvaluation(conditional.FalseExpression);
+            }
+
+            return false;
+        }
+
         #region IVisitor
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
@@ -154,12 +253,7 @@ namespace NUglify.JavaScript.Visitors
                                 // transform: x !== y   =>   true
                                 // transform: x === y   =>   false
                                 node.Context.HandleError(JSError.StrictComparisonIsAlwaysTrueOrFalse, false);
-                                node.Parent.ReplaceChild(
-                                    node,
-                                    new ConstantWrapper(node.OperatorToken == JSToken.StrictNotEqual, PrimitiveType.Boolean, node.Context));
-
-                                // because we are essentially removing the node from the AST, be sure to detach any references
-                                DetachReferencesVisitor.Apply(node);
+                                node.Parent.ReplaceChild(node, ReplaceWithLiteralPreservingOperandEvaluation(node, node.OperatorToken == JSToken.StrictNotEqual));
                             }
                         }
                     }

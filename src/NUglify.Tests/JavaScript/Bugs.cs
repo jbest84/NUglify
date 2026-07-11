@@ -487,6 +487,33 @@ function init() {
         }
 
         [Test]
+        public void Bug402()
+        {
+            var result = Uglify.Js(@"
+const findByCriteriaRecursive = function (collection, criteria) {
+    var _a, _b;
+    var myNextCollection = [];
+    for (var _i = 0, collection_1 = collection; _i < collection_1.length; _i++) {
+        var myOption = collection_1[_i];
+        if (myOption.criteria === criteria) {
+            return myOption;
+        }
+        if ((_b = ((_a = myOption.subItems) === null || _a === void 0 ? void 0 : _a.length) > 0) !== null && _b !== void 0 ? _b : false) {
+            myNextCollection.push.apply(myNextCollection, myOption.subItems);
+        }
+    }
+    if (myNextCollection.length > 0) {
+        return findByCriteriaRecursive(myNextCollection, criteria);
+    }
+    return null;
+};");
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("const findByCriteriaRecursive=function(n,t){for(var i,u,f,r=[],e=0,o=n;e<o.length;e++){if(i=o[e],i.criteria===t)return i;(((f=((u=i.subItems)===null||u===void 0?void 0:u.length)>0),!0)&&f!==void 0?f:!1)&&r.push.apply(r,i.subItems)}return r.length>0?findByCriteriaRecursive(r,t):null}"));
+        }
+
+        [Test]
         public void Bug405()
         {
             var result = Uglify.Js(@"
