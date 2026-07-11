@@ -221,6 +221,17 @@ body
         }
 
         [Test]
+        public void Bug401()
+        {
+            AssertMinified(@"@supports selector(:has(*)) {
+	.VentaRapida {
+		position: absolute;
+	}
+}",
+                "@supports selector(:has(*)){.VentaRapida{position:absolute}}");
+        }
+
+        [Test]
         public void Bug424()
         {
             var uglifyResult = Uglify.Css(@"h1 {
