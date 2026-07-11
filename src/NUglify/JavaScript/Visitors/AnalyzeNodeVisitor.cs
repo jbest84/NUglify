@@ -3368,7 +3368,7 @@ namespace NUglify.JavaScript.Visitors
                         });
                 }
 
-                if (m_scopeStack.Peek().UseStrict)
+                if (m_scopeStack.Peek().UseStrict && !IsBindingPattern(node))
                 {
                     // now strict-mode checks
                     // go through all property names and make sure there are no duplicates.
@@ -3522,6 +3522,57 @@ namespace NUglify.JavaScript.Visitors
                 default:
                     return "data";
             }
+        }
+
+        static bool IsBindingPattern(ObjectLiteral node)
+        {
+            for (AstNode current = node.Parent; current != null; current = current.Parent)
+            {
+                if (current is VariableDeclaration variableDeclaration)
+                {
+                    return ContainsNode(variableDeclaration.Binding, node);
+                }
+
+                if (current is ParameterDeclaration parameterDeclaration)
+                {
+                    return ContainsNode(parameterDeclaration.Binding, node);
+                }
+
+                if (current is BinaryExpression binaryExpression && binaryExpression.OperatorToken == JSToken.Assign)
+                {
+                    return ContainsNode(binaryExpression.Operand1, node);
+                }
+
+                if (current is ForInStatement forInStatement)
+                {
+                    return ContainsNode(forInStatement.Variable, node);
+                }
+            }
+
+            return false;
+        }
+
+        static bool ContainsNode(AstNode root, AstNode target)
+        {
+            if (root == null)
+            {
+                return false;
+            }
+
+            if (root == target)
+            {
+                return true;
+            }
+
+            foreach (var child in root.Children)
+            {
+                if (ContainsNode(child, target))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public override void Visit(RegExpLiteral node)
