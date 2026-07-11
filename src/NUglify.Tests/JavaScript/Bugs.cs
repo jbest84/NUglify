@@ -801,6 +801,25 @@ console.log(func());
             Assert.That(result.Code, Is.EqualTo("const func=()=>{const n={avatar:Date(),timeline:Date(),backup:Date(),id:123,name:\"Roman\"},{avatar:i,timeline:r,backup:u,...t}=n;return t};console.log(func())"));
         }
 
+        [Test]
+        public void Bug382()
+        {
+            var result = Uglify.Js(@"
+function abc(def){
+    alert(def);
+}
+
+export default { abc };
+", new CodeSettings
+            {
+                RemoveUnneededCode = true
+            });
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("function n(n){alert(n)}export default{abc:n}"));
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);

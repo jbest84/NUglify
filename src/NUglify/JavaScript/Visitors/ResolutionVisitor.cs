@@ -226,11 +226,30 @@ namespace NUglify.JavaScript.Visitors
 
             // if we are exporting this field, we want to change it's field type.
             // if the parent is an import/export specifier, then it MUST be an export, because imports
-            // will only use binding declarations in their specifiers.
-            if (lookup.Parent is ImportExportSpecifier || lookup.Parent is ExportStatement)
+            // will only use binding declarations in their specifiers. For export default expressions,
+            // the lookup may be nested under an object literal, call, or other expression node.
+            if (lookup.Parent is ImportExportSpecifier || IsInsideExportStatement(lookup))
             {
                 lookup.VariableField.IsExported = true;
             }
+        }
+
+        static bool IsInsideExportStatement(AstNode node)
+        {
+            for (var parent = node.Parent; parent != null; parent = parent.Parent)
+            {
+                if (parent is ExportStatement)
+                {
+                    return true;
+                }
+
+                if (parent is BlockStatement)
+                {
+                    break;
+                }
+            }
+
+            return false;
         }
 
         static void ResolvePredefinedGlobal(LookupExpression lookup, ActivationObject scope, CodeSettings settings)
