@@ -481,6 +481,30 @@ function init() {
         }
 
         [Test]
+        public void Bug399()
+        {
+            var result = Uglify.Js(@"
+function fun(item){
+    if (createmode == true) {
+        let a = 'a';
+        var b = 'b';
+        if(a && b != null ) {
+            let Maker = 'c';
+            let obj = {a:a,Closed:1,Closer:Maker,CloseDate:new Date()};
+            let rejust= null;
+        }
+    }
+}
+
+var createmode = true;
+fun(null);");
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("function fun(){if(createmode==!0){let t=\"a\";var n=\"b\";if(t&&n!=null){let n={a:t,Closed:1,Closer:\"c\",CloseDate:new Date}}}}var createmode=!0;fun(null)"));
+        }
+
+        [Test]
         public void Bug403()
         {
             TestHelper.Instance.RunErrorTest();

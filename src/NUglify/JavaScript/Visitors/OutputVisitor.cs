@@ -2096,7 +2096,7 @@ namespace NUglify.JavaScript.Visitors
 
                 OutputPossibleLineBreak(')');
 
-                if (node.TrueBlock != null && node.TrueBlock.ForceBraces)
+                if (node.TrueBlock != null && (node.TrueBlock.ForceBraces || RequiresBracesForSingleStatement(node.TrueBlock)))
                 {
                     OutputBlockWithBraces(node.TrueBlock);
                 }
@@ -2158,7 +2158,9 @@ namespace NUglify.JavaScript.Visitors
                     NewLine();
                     Output("else");
                     MarkSegment(node, null, node.ElseContext);
-                    if (node.FalseBlock.Count == 1 && !node.FalseBlock.ForceBraces)
+                    if (node.FalseBlock.Count == 1
+                        && !node.FalseBlock.ForceBraces
+                        && !RequiresBracesForSingleStatement(node.FalseBlock))
                     {
                         var statement = node.FalseBlock[0];
                         if (statement is IfStatement)
@@ -4160,7 +4162,7 @@ namespace NUglify.JavaScript.Visitors
         /// <param name="block">block to output</param>
         void OutputBlock(BlockStatement block)
         {
-            if (block != null && block.ForceBraces)
+            if (block != null && (block.ForceBraces || RequiresBracesForSingleStatement(block)))
             {
                 // always output the braces
                 OutputBlockWithBraces(block);
@@ -4210,6 +4212,13 @@ namespace NUglify.JavaScript.Visitors
             }
 
             block.Accept(this);
+        }
+
+        static bool RequiresBracesForSingleStatement(BlockStatement block)
+        {
+            return block != null
+                && block.Count == 1
+                && block[0] is LexicalDeclaration;
         }
 
         string InlineSafeString(string text)
