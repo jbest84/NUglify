@@ -232,6 +232,14 @@ body
         }
 
         [Test]
+        public void Bug400()
+        {
+            AssertMinified(
+                ".test { grid-template-rows: [header-start] auto [header-end main-start] minmax(auto,1fr) [main-end footer-start] auto [footer-end]; }",
+                ".test{grid-template-rows:[header-start] auto [header-end main-start] minmax(auto,1fr) [main-end footer-start] auto [footer-end]}");
+        }
+
+        [Test]
         public void Bug424()
         {
             var uglifyResult = Uglify.Css(@"h1 {

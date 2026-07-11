@@ -4401,8 +4401,19 @@ namespace NUglify.Css
                         {
                             ReportError(0, CssErrorCode.ExpectedIdentifier, CurrentTokenText);
                         }
-                        AppendCurrent();
-                        SkipSpace();
+                        else
+                        {
+                            AppendCurrent();
+                            SkipSpace();
+
+                            while (CurrentTokenType == TokenType.Identifier && m_skippedSpace)
+                            {
+                                Append(' ');
+                                AppendCurrent();
+                                SkipSpace();
+                            }
+                        }
+
                         if (CurrentTokenText != "]")
                         {
                             ReportError(0, CssErrorCode.ExpectedClosingBracket, CurrentTokenText);
