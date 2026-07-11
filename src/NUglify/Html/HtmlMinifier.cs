@@ -25,6 +25,14 @@ namespace NUglify.Html
         }.ToDictionaryBool(false);
 
         static readonly Dictionary<string, bool> ScriptAttributes = new [] { "onafterprint", "onbeforeprint", "onbeforeunload", "onerror", "onhashchange", "onload", "onmessage", "onoffline", "ononline", "onpagehide", "onpageshow", "onpopstate", "onresize", "onstorage", "onunload", "onblur", "onchange", "oncontextmenu", "onfocus", "oninput", "oninvalid", "onreset", "onsearch", "onselect", "onsubmit", "onkeydown", "onkeypress", "onkeyup", "onclick", "ondblclick", "onmousedown", "onmousemove", "onmouseout", "onmouseover", "onmouseup", "onmousewheel", "onwheel", "ondrag", "ondragend", "ondragenter", "ondragleave", "ondragover", "ondragstart", "ondrop", "onscroll", "oncopy", "oncut", "onpaste", "onabort", "oncanplay", "oncanplaythrough", "oncuechange", "ondurationchange", "onemptied", "onended", "onerror", "onloadeddata", "onloadedmetadata", "onloadstart", "onpause", "onplay", "onplaying", "onprogress", "onratechange", "onseeked", "onseeking", "onstalled", "onsuspend", "ontimeupdate", "onvolumechange", "onwaiting", "ontoggle"}.ToDictionaryBool(false);
+        static readonly Dictionary<string, bool> BooleanAttributes = new[]
+        {
+            "allowfullscreen", "async", "autofocus", "autoplay", "checked", "compact", "controls",
+            "declare", "default", "defer", "disabled", "formnovalidate", "hidden", "inert",
+            "ismap", "itemscope", "loop", "multiple", "muted", "nohref", "nomodule", "noresize",
+            "noshade", "novalidate", "nowrap", "open", "playsinline", "readonly", "required",
+            "reversed", "scoped", "selected", "truespeed", "typemustmatch"
+        }.ToDictionaryBool(false);
 
         public bool HasErrors { get; private set; }
 
@@ -456,7 +464,7 @@ namespace NUglify.Html
                 }
             }
 
-            if (settings.ShortBooleanAttribute && attribute.Value == "true" && attributeNameLower != "value" && attributeNameLower != "aria-hidden")
+            if (settings.ShortBooleanAttribute && attribute.Value == "true" && BooleanAttributes.ContainsKey(attributeNameLower))
             {
                 attribute.Value = null;
             }

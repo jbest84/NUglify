@@ -233,5 +233,14 @@ test
 			var htmlToText = Uglify.Html(input, settings);
 			equal(htmlToText.Code, input);
 		}
+
+		[Test]
+		public void Bug435()
+		{
+			var settings = new HtmlSettings();
+			input = "<a hx-boost=true></a>";
+			var htmlToText = Uglify.Html(input, settings);
+			equal(htmlToText.Code, "<a hx-boost=true></a>");
+		}
     }
 }
