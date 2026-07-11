@@ -926,6 +926,17 @@ namespace NUglify.JavaScript.Syntax
                         }
                     }
 
+                    // Block-scoped lexical declarations cannot reuse the output names of var
+                    // declarations that appear within the same block. Those var declarations
+                    // live in the enclosing variable scope, so they won't be in this NameTable.
+                    if (this is BlockScope)
+                    {
+                        foreach (var varDecl in VarDeclaredNames)
+                        {
+                            avoidSet.Add(varDecl.VariableField.IfNotNull(f => f.ToString()) ?? varDecl.Name);
+                        }
+                    }
+
                     var crunchEnum = new CrunchEnumerator(avoidSet);
                     foreach (var localField in localFields)
                     {

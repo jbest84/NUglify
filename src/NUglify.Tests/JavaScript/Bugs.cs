@@ -492,6 +492,39 @@ function init() {
         }
 
         [Test]
+        public void Bug440()
+        {
+            AssertMinified(@"
+var func1 = function () {
+var var1 = someFunc();
+
+var func2 = function () {
+    try {
+        someFunc2(var1);
+
+        var comments = someFunc4('comments');
+        var poItems = someFunc4('poItems');
+        var showRejection = someFunc4('showRejection');
+        var btnAddComment = someFunc4('btnAddComment ')
+        var btnComment = someFunc4('btnShowComments')
+        var btnMatchPOLine = someFunc4('matchPO')
+        
+        let comments2 = someFunc4(""comments2"");
+        let vendor = someFunc4(""vendor"");
+        let invoiceData = someFunc4(""invoiceData"");
+        let invoiceItems = someFunc4(""invoiceItems"");
+        let poItem2 = someFunc4(""poItem2"");
+        let rejectionReason = someFunc4(""rejectionReason"");
+        let rejectionReason2 = someFunc4(""rejectionReason2"");
+    }
+    catch (err) {
+        someFunc3(err)
+    }
+};
+}", "var func1=function(){var n=someFunc(),t=function(){try{someFunc2(n);var i=someFunc4(\"comments\"),r=someFunc4(\"poItems\"),u=someFunc4(\"showRejection\"),f=someFunc4(\"btnAddComment \"),e=someFunc4(\"btnShowComments\"),o=someFunc4(\"matchPO\");let t=someFunc4(\"comments2\"),s=someFunc4(\"vendor\"),h=someFunc4(\"invoiceData\"),c=someFunc4(\"invoiceItems\"),l=someFunc4(\"poItem2\"),a=someFunc4(\"rejectionReason\"),v=someFunc4(\"rejectionReason2\")}catch(t){someFunc3(t)}}}");
+        }
+
+        [Test]
         public void Bug442()
         {
             // a reference inside a destructuring default-value expression must be tracked as a
