@@ -566,6 +566,20 @@ var func2 = function () {
             Assert.That(result.Code, Is.EqualTo("function make(n){const[t=n]=[];return t}"));
         }
 
+        [Test]
+        public void Bug421()
+        {
+            var result = Uglify.Js("class Test{'allow-cache'(){}}");
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("class Test{\"allow-cache\"(){}}"));
+
+            result = Uglify.Js("let o={'allow-cache'(){}}");
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("let o={\"allow-cache\"(){}}"));
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);

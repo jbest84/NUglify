@@ -1891,6 +1891,28 @@ namespace NUglify.JavaScript.Visitors
             }
         }
 
+        void OutputMethodLiteralName(ObjectLiteralField node)
+        {
+            if (node == null)
+            {
+                return;
+            }
+
+            if (JSScanner.IsValidIdentifierPart(lastCharacter))
+            {
+                Output(' ');
+            }
+
+            if (node.PrimitiveType == PrimitiveType.String)
+            {
+                Visit(node as ConstantWrapper);
+            }
+            else
+            {
+                Visit(node as ConstantWrapper);
+            }
+        }
+
         public void Visit(FunctionObject node)
         {
             // TODO: 205
@@ -1969,7 +1991,18 @@ namespace NUglify.JavaScript.Visitors
                             MarkSegment(node, node.Binding.Name, node.Binding.Context);
                             SetContextOutputPosition(node.Context);
                         }
-                    } else if (node.ComputedName != null)
+                    }
+                    else if (node.LiteralName != null)
+                    {
+                        isAnonymous = false;
+                        if (settings.SymbolsMap != null)
+	                        m_functionStack.Push(node.LiteralName.Name);
+
+                        OutputMethodLiteralName(node.LiteralName);
+                        MarkSegment(node, node.LiteralName.Name, node.LiteralName.Context);
+                        SetContextOutputPosition(node.Context);
+                    }
+                    else if (node.ComputedName != null)
                     {
                         Visit(node.ComputedName);
                     }
