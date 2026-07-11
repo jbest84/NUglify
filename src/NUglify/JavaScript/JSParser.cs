@@ -3370,6 +3370,11 @@ namespace NUglify.JavaScript
 	            if (m_currentToken.Is(JSToken.LeftParenthesis))
 	            {
 		            var function = ParseFunctionPart2(FunctionType.Method, ctx, null, null, computedName, false, false);
+                    if (function != null && staticContext != null)
+                    {
+                        function.IsStatic = true;
+                        function.StaticContext = staticContext;
+                    }
 		            return function;
 	            }
             }
