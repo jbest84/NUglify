@@ -1,23 +1,46 @@
-﻿body
+body
 {
+    line-height: 1lh;
+    margin-top: 1cap;
+    margin-right: 2ic;
     width: 12em;
     height: 42ex;
     text-indent: 4.666ch;
     font-size: 3rem;
+    max-height: 70dvh;
     border-bottom-width: 0.1vh;
     border-left-width: 0.1vw;
+    inset-block-start: 0.25vb;
+    inset-inline-start: 0.125vi;
     border-right-width: 0.2vmin;
     border-top-width: 0.5vmax;
+    min-height: 50svh;
+    min-width: 60svw;
+    max-width: 70lvw;
+    block-size: 80lvh;
+    inline-size: 90dvw;
+    padding-left: 1svmin;
+    padding-right: 2svmax;
+    padding-top: 3dvmin;
+    padding-bottom: 4dvmax;
+    left: 5lvmin;
+    right: 6lvmax;
 }
 
 a
 {
     font-size: 2CM;
+    border-width: 1Q;
     padding-top: 30mm;
     padding-bottom: 1in;
     margin-left: 15px;
     margin-right: 32pt;
     min-width: 12pc;
+    max-width: 10rcap;
+    min-height: 11rch;
+    width: 12rex;
+    height: 13ric;
+    line-height: 14rlh;
 }
 
 div
@@ -47,4 +70,5 @@ span
     min-resolution: 12dpi;
     max-resolution: 52dppx;
     max-resolution: 12dpcm;
+    print-resolution: 2x;
 }
