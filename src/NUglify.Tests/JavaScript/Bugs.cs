@@ -492,6 +492,15 @@ function init() {
         }
 
         [Test]
+        public void Bug437()
+        {
+            AssertNoStrictModeErrors("const { options, labels, options: { labels: labelOptions } } = this;");
+            AssertNoStrictModeErrors("({ options, labels, options: { labels: labelOptions } } = this);");
+            AssertNoStrictModeErrors("function test({ options, labels, options: { labels: labelOptions } }) { return labelOptions; }");
+            AssertNoStrictModeErrors("var test = ({ options, labels, options: { labels: labelOptions } }) => labelOptions;");
+        }
+
+        [Test]
         public void Bug440()
         {
             AssertMinified(@"
@@ -563,6 +572,13 @@ var func2 = function () {
             Assert.That(result.HasErrors, Is.False,
                 () => "Uglify errors:\n" + string.Join("\n", result.Errors));
             Assert.That(result.Code, Is.EqualTo(expected));
+        }
+
+        private void AssertNoStrictModeErrors(string source)
+        {
+            var result = Uglify.Js(source, new CodeSettings { StrictMode = true });
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
         }
     }
 }
