@@ -1,0 +1,1 @@
+define("SomeModule",[],function(){return{someProperty:[{property1:"SomeString",property2:async()=>{if(someVariable)return;else{let i=new SomeService;i.someMethod();const n=await someFunction1(),t=await someFunction2()}}}]}})

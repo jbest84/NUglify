@@ -449,6 +449,12 @@ class TestClass {
         }
 
         [Test]
+        public void Bug365()
+        {
+	        TestHelper.Instance.RunTest("-rename:all -const:moz");
+        }
+
+        [Test]
         public void Bug375()
         {
 	        TestHelper.Instance.RunTest("-rename:all");
