@@ -181,6 +181,105 @@ namespace NUglify.JavaScript.Visitors
             }
         }
 
+        static AstNode ReplaceWithLiteralPreservingOperandEvaluation(BinaryExpression node, bool value)
+        {
+            AstNode replacement = new ConstantWrapper(value, PrimitiveType.Boolean, node.Context);
+
+            if (!ShouldPreserveForParent(node))
+            {
+                return replacement;
+            }
+
+            // Preserve any operand evaluations that still need to happen even when the
+            // comparison outcome is known from the operand types.
+            if (ShouldPreserveEvaluation(node.Operand2))
+            {
+                replacement = CommaExpression.CombineWithComma(node.Operand2.Context.FlattenToStart(), node.Operand2, replacement);
+            }
+
+            if (ShouldPreserveEvaluation(node.Operand1))
+            {
+                replacement = CommaExpression.CombineWithComma(node.Operand1.Context.FlattenToStart(), node.Operand1, replacement);
+            }
+
+            return replacement;
+        }
+
+        static bool ShouldPreserveForParent(BinaryExpression node)
+        {
+            AstNode parent = node.Parent;
+            while (parent is GroupingOperator)
+            {
+                parent = parent.Parent;
+            }
+
+            var parentBinary = parent as BinaryExpression;
+            if (parentBinary != null)
+            {
+                return parentBinary.OperatorToken == JSToken.LogicalAnd
+                    || parentBinary.OperatorToken == JSToken.LogicalOr
+                    || parentBinary.OperatorToken == JSToken.NullishCoalesce;
+            }
+
+            return parent is Conditional;
+        }
+
+        static bool ShouldPreserveEvaluation(AstNode node)
+        {
+            if (node == null || node.IsConstant)
+            {
+                return false;
+            }
+
+            if (node is CallExpression)
+            {
+                return true;
+            }
+
+            var unary = node as UnaryExpression;
+            if (unary != null)
+            {
+                switch (unary.OperatorToken)
+                {
+                    case JSToken.Delete:
+                    case JSToken.Increment:
+                    case JSToken.Decrement:
+                        return true;
+
+                    default:
+                        return ShouldPreserveEvaluation(unary.Operand);
+                }
+            }
+
+            var binary = node as BinaryExpression;
+            if (binary != null)
+            {
+                if (binary.OperatorToken == JSToken.Assign)
+                {
+                    return true;
+                }
+
+                return binary.OperatorToken == JSToken.Comma
+                    && (ShouldPreserveEvaluation(binary.Operand1) || ShouldPreserveEvaluation(binary.Operand2));
+            }
+
+            var grouping = node as GroupingOperator;
+            if (grouping != null)
+            {
+                return ShouldPreserveEvaluation(grouping.Operand);
+            }
+
+            var conditional = node as Conditional;
+            if (conditional != null)
+            {
+                return ShouldPreserveEvaluation(conditional.Condition)
+                    || ShouldPreserveEvaluation(conditional.TrueExpression)
+                    || ShouldPreserveEvaluation(conditional.FalseExpression);
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Both the operands of this operator are constants. See if we can evaluate them
         /// </summary>
@@ -1912,9 +2011,9 @@ namespace NUglify.JavaScript.Visitors
                                 if (leftType != rightType)
                                 {
                                     // they are not the same type -- replace with a boolean and bail
-                                    ReplaceNodeWithLiteral(
-                                        node, 
-                                        new ConstantWrapper(node.OperatorToken == JSToken.StrictEqual ? false : true, PrimitiveType.Boolean, node.Context));
+                                    ReplaceNodeCheckParens(
+                                        node,
+                                        ReplaceWithLiteralPreservingOperandEvaluation(node, node.OperatorToken == JSToken.StrictNotEqual));
                                     return;
                                 }
 
