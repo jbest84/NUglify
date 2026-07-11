@@ -48,6 +48,15 @@ namespace NUglify.Tests.Html
         }
 
         [Test]
+        public void AriaAttributesAreNotShortenedAsBooleanAttributes()
+        {
+            input = "<button aria-hidden=\"true\" aria-expanded=\"true\" aria-selected=\"true\" aria-pressed=\"true\" aria-disabled=\"true\">x</button>";
+            equal(
+                minify(input, new HtmlSettings { ShortBooleanAttribute = true }),
+                "<button aria-hidden=true aria-expanded=true aria-selected=true aria-pressed=true aria-disabled=true>x</button>");
+        }
+
+        [Test]
         public void CleanupClassStyleAttribute()
         {
             // Copyright(c) 2010 - 2016 Juriy "kangax" Zaytsev
