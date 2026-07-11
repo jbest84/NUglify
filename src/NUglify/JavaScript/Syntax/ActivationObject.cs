@@ -942,6 +942,11 @@ namespace NUglify.JavaScript.Syntax
                         AddLexicalNamesFromContainingScopes(avoidSet, localField);
                     }
 
+                    if (this is BlockScope && ContainsFunctionDeclaration(LexicallyDeclaredNames))
+                    {
+                        AddAncestorScopeNames(avoidSet, this);
+                    }
+
                     var crunchEnum = new CrunchEnumerator(avoidSet);
                     foreach (var localField in localFields)
                     {
@@ -1019,6 +1024,33 @@ namespace NUglify.JavaScript.Syntax
             }
 
             return null;
+        }
+
+        static bool ContainsFunctionDeclaration(IEnumerable<INameDeclaration> declarations)
+        {
+            foreach (var declaration in declarations)
+            {
+                if (declaration?.Parent is FunctionObject)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        static void AddAncestorScopeNames(HashSet<string> avoidSet, ActivationObject scope)
+        {
+            for (var current = scope?.Parent; current != null; current = current.Parent)
+            {
+                foreach (var field in current.NameTable.Values)
+                {
+                    if (field != null)
+                    {
+                        avoidSet.Add(field.ToString());
+                    }
+                }
+            }
         }
 
         internal IEnumerable<JSVariableField> GetUncrunchedLocals()
