@@ -580,6 +580,15 @@ var func2 = function () {
             Assert.That(result.Code, Is.EqualTo("let o={\"allow-cache\"(){}}"));
         }
 
+        [Test]
+        public void Bug434()
+        {
+            var result = Uglify.Js("class TestElement extends HTMLElement { static [Symbol.hasInstance](instance) { return true; } }");
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("class TestElement extends HTMLElement{static[Symbol.hasInstance](){return!0}}"));
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);
