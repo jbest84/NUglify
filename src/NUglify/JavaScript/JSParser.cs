@@ -5035,7 +5035,7 @@ namespace NUglify.JavaScript
                 var restContext = m_currentToken.Clone();
                 GetNextToken();
 
-                value = ParseExpression(true);
+                value = ParseObjectPropertyValue(isBindingPattern);
 
                 if (value != null)
                 {

@@ -589,6 +589,15 @@ var func2 = function () {
             Assert.That(result.Code, Is.EqualTo("class TestElement extends HTMLElement{static[Symbol.hasInstance](){return!0}}"));
         }
 
+        [Test]
+        public void Bug425()
+        {
+            var result = Uglify.Js("$m=(e,t,n,o,r,s)=>{const{uid:a=t,...i}=n;}");
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("$m=(n,t,i)=>{const{uid:r=t,...u}=i}"));
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);
