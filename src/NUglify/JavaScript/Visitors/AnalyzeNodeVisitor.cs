@@ -1996,11 +1996,20 @@ namespace NUglify.JavaScript.Visitors
                     {
                         string functionName;
                         var functionObject = element as FunctionObject;
-                        if (functionObject != null 
-                            && functionObject.Binding != null 
-                            && !(functionName = functionObject.Binding.Name).IsNullOrWhiteSpace())
+                        if (functionObject != null)
                         {
-                            var errorContext = functionObject.Binding.Context ?? functionObject.Context;
+                            functionName = functionObject.Binding?.Name;
+                            var errorContext = functionObject.Binding?.Context ?? functionObject.LiteralName?.Context ?? functionObject.Context;
+
+                            if (functionName.IsNullOrWhiteSpace() && functionObject.LiteralName != null)
+                            {
+                                functionName = functionObject.LiteralName.Name;
+                            }
+
+                            if (functionName.IsNullOrWhiteSpace())
+                            {
+                                continue;
+                            }
 
                             // the keyed name is the function type (get/set/other) plus the name
                             // make sure there's no duplicate with this name

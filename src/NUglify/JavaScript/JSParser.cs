@@ -2868,6 +2868,7 @@ namespace NUglify.JavaScript
         private FunctionObject ParseFunction(FunctionType functionType, SourceContext fncCtx)
         {
             BindingIdentifier name = null;
+            ObjectLiteralField literalName = null;
             ArrayLiteral computedName = null;
             bool inExpression = (functionType == FunctionType.Expression);
 
@@ -2908,6 +2909,11 @@ namespace NUglify.JavaScript
                 // TODO: error handling
 		        computedName = arrayLiteral as ArrayLiteral;
             }
+            else if ((functionType == FunctionType.Method || functionType == FunctionType.Getter || functionType == FunctionType.Setter)
+                && (m_currentToken.Is(JSToken.StringLiteral) || m_currentToken.Is(JSToken.IntegerLiteral) || m_currentToken.Is(JSToken.NumericLiteral)))
+            {
+                literalName = ParseObjectLiteralFieldName();
+            }
             else
             {
                 string identifier = JSKeyword.CanBeIdentifier(m_currentToken.Token);
@@ -2946,10 +2952,10 @@ namespace NUglify.JavaScript
                 }
             }
 
-            return ParseFunctionPart2(functionType, fncCtx, name, computedName, isGenerator, isAsync);
+            return ParseFunctionPart2(functionType, fncCtx, name, literalName, computedName, isGenerator, isAsync);
         }
 
-        private FunctionObject ParseFunctionPart2(FunctionType functionType, SourceContext context, BindingIdentifier name, ArrayLiteral computedName, bool isGenerator, bool isAsync)
+        private FunctionObject ParseFunctionPart2(FunctionType functionType, SourceContext context, BindingIdentifier name, ObjectLiteralField literalName, ArrayLiteral computedName, bool isGenerator, bool isAsync)
         {
 	        BlockStatement body = null;
 	        if (m_currentToken.IsNot(JSToken.LeftParenthesis))
@@ -2966,7 +2972,7 @@ namespace NUglify.JavaScript
 		               && m_currentToken.IsNot(JSToken.Semicolon)
 		               && m_currentToken.IsNot(JSToken.EndOfFile))
 		        {
-			        name.Context.UpdateWith(m_currentToken);
+			        name?.Context.UpdateWith(m_currentToken);
 			        GetNextToken();
 			        expandedIndentifier = true;
 		        }
@@ -2976,8 +2982,15 @@ namespace NUglify.JavaScript
 		        // name, so just report that we expected an open paren at this point.
 		        if (expandedIndentifier)
 		        {
-			        name.Name = name.Context.Code;
-			        name.Context.HandleError(JSError.FunctionNameMustBeIdentifier, false);
+			        if (name != null)
+			        {
+				        name.Name = name.Context.Code;
+				        name.Context.HandleError(JSError.FunctionNameMustBeIdentifier, false);
+			        }
+			        else
+			        {
+				        ReportError(JSError.NoLeftParenthesis, context);
+			        }
 		        }
 		        else
 		        {
@@ -3035,6 +3048,7 @@ namespace NUglify.JavaScript
 	        {
 		        FunctionType = functionType,
 		        Binding = name,
+		        LiteralName = literalName,
 		        ComputedName = computedName,
 		        ParameterDeclarations = formalParameters,
 		        Body = body,
@@ -3355,7 +3369,7 @@ namespace NUglify.JavaScript
 
 	            if (m_currentToken.Is(JSToken.LeftParenthesis))
 	            {
-		            var function = ParseFunctionPart2(FunctionType.Method, ctx, null, computedName, false, false);
+		            var function = ParseFunctionPart2(FunctionType.Method, ctx, null, null, computedName, false, false);
 		            return function;
 	            }
             }
@@ -5071,7 +5085,7 @@ namespace NUglify.JavaScript
 
 	            if (m_currentToken.Is(JSToken.LeftParenthesis))
 	            {
-                    value = ParseFunctionPart2(FunctionType.Method, ctx, null, astNode as ArrayLiteral, false, false);
+                    value = ParseFunctionPart2(FunctionType.Method, ctx, null, null, astNode as ArrayLiteral, false, false);
 	            }
 	            else
 	            {

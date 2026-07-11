@@ -23,6 +23,7 @@ namespace NUglify.JavaScript.Syntax
     public class FunctionObject : AstNode
     {
 	    BindingIdentifier m_binding;
+	    ObjectLiteralField m_literalName;
 	    AstNodeList m_parameters;
 	    BlockStatement m_body;
 
@@ -34,6 +35,12 @@ namespace NUglify.JavaScript.Syntax
         {
             get => m_binding;
             set => ReplaceNode(ref m_binding, value);
+        }
+
+        public ObjectLiteralField LiteralName
+        {
+            get => m_literalName;
+            set => ReplaceNode(ref m_literalName, value);
         }
 
         public ArrayLiteral ComputedName { get; set; }
@@ -185,7 +192,7 @@ namespace NUglify.JavaScript.Syntax
         {
             get
             {
-                return EnumerateNonNullNodes(Binding, ParameterDeclarations, Body);
+                return EnumerateNonNullNodes(Binding, LiteralName, ParameterDeclarations, Body);
             }
         }
 
@@ -194,6 +201,11 @@ namespace NUglify.JavaScript.Syntax
             if (Binding == oldNode)
             {
                 Binding = newNode as BindingIdentifier;
+                return true;
+            }
+            else if (LiteralName == oldNode)
+            {
+                LiteralName = newNode as ObjectLiteralField;
                 return true;
             }
             else if (Body == oldNode)
