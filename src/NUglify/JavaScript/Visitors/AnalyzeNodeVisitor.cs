@@ -2548,6 +2548,32 @@ namespace NUglify.JavaScript.Visitors
                     node.NameGuess = GuessAtName(node);
                 }
 
+                if ((node.FunctionType == FunctionType.Method
+                        || node.FunctionType == FunctionType.Getter
+                        || node.FunctionType == FunctionType.Setter)
+                    && node.ComputedName == null
+                    && m_parser.Settings.HasRenamePairs
+                    && m_parser.Settings.ManualRenamesProperties
+                    && m_parser.Settings.IsModificationAllowed(TreeModifications.PropertyRenaming))
+                {
+                    if (node.Binding != null)
+                    {
+                        var newName = m_parser.Settings.GetNewName(node.Binding.Name);
+                        if (!string.IsNullOrEmpty(newName))
+                        {
+                            node.Binding.Name = newName;
+                        }
+                    }
+                    else if (node.LiteralName != null)
+                    {
+                        var newName = m_parser.Settings.GetNewName(node.LiteralName.Name);
+                        if (!string.IsNullOrEmpty(newName))
+                        {
+                            node.LiteralName.Value = newName;
+                        }
+                    }
+                }
+
                 // don't analyze the identifier or we'll add an extra reference to it.
                 var isStrict = m_scopeStack.Peek().UseStrict;
                 if (isStrict && node.Binding != null)
@@ -2613,6 +2639,11 @@ namespace NUglify.JavaScript.Visitors
                         }
                     }
                 }
+
+                // class/object method literal names participate in property renaming,
+                // and computed names need to be analyzed in the containing scope.
+                node.LiteralName?.Accept(this);
+                node.ComputedName?.Accept(this);
 
                 if (node.Body != null)
                 {

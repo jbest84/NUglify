@@ -512,6 +512,61 @@ function init() {
             Assert.That(result.Code, Does.Contain("if(1){i();function i(){}}"));
             Assert.That(result.Code, Does.Not.Contain("if(1){n();function n(){}}"));
         }
+
+        [Test]
+        public void Bug406()
+        {
+            var settings = new CodeSettings
+            {
+                OutputMode = OutputMode.MultipleLines,
+                LocalRenaming = LocalRenaming.CrunchAll,
+                PreserveFunctionNames = false,
+                PreserveImportantComments = false,
+                QuoteObjectLiteralProperties = false,
+                RemoveFunctionExpressionNames = true,
+                RemoveUnneededCode = true,
+                RenamePairs = @"MyClass=a,field=b,method=c,property=d,myVar=e",
+                ReorderScopeDeclarations = true,
+                StrictMode = false,
+                StripDebugStatements = true,
+                TermSemicolons = false,
+                WarningLevel = int.MaxValue
+            };
+
+            var result = Uglify.Js(@"
+class MyClass
+{
+    constructor(field)
+    {
+        this.field = field;
+    }
+
+    method()
+    {
+        field++;
+    }
+
+    get property()
+    {
+        return field;
+    }
+}
+
+var myVar = new MyClass();
+myVar.method();
+var property = myVar.property;", settings);
+
+            Assert.That(result.Code, Does.Contain("class a"));
+            Assert.That(result.Code, Does.Contain("constructor(b)"));
+            Assert.That(result.Code, Does.Contain("c()"));
+            Assert.That(result.Code, Does.Contain("get d()"));
+            Assert.That(result.Code, Does.Contain("e.c()"));
+            Assert.That(result.Code, Does.Contain("e.d"));
+            Assert.That(result.Code, Does.Not.Contain("method()"));
+            Assert.That(result.Code, Does.Not.Contain("get property()"));
+            Assert.That(result.Code, Does.Not.Contain(".method()"));
+            Assert.That(result.Code, Does.Not.Contain(".property"));
+        }
       
         public void Bug429()
         {
