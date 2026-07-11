@@ -142,6 +142,19 @@ body
         }
 
         [Test]
+        public void Bug415()
+        {
+            var uglifyResult = Uglify.Css(@"
+.test-class {
+    max-height: 70dvh;
+    overflow-y: hidden;
+}");
+
+            Assert.That(uglifyResult.Code, Is.EqualTo(".test-class{max-height:70dvh;overflow-y:hidden}"));
+            Assert.That(uglifyResult.HasErrors, Is.False);
+        }
+
+        [Test]
         public void Bug317()
         {
 	        Assert.That(Uglify.Css(@"

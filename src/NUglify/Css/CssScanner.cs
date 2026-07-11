@@ -1098,15 +1098,43 @@ namespace NUglify.Css
                         TokenType tokenType = TokenType.Dimension;
                         switch (dimen.ToUpperInvariant())
                         {
+                            case "CAP":         // cap height of the element's font
+                            case "CH":          // width of the zero glyph in the element's font
                             case "EM":          // font-size of the element
                             case "EX":          // x-height of the element's font
-                            case "CH":          // width of the zero glyph in the element's font
+                            case "IC":          // average advance measure of CJK water ideograph
+                            case "LH":          // line height of the element
                             case "REM":         // font-size of the root element
-                            case "VW":          // viewport's width
+                            case "RCAP":        // cap height of the root element's font
+                            case "RCH":         // width of the zero glyph in the root element's font
+                            case "REX":         // x-height of the root element's font
+                            case "RIC":         // average advance measure of CJK water ideograph in the root font
+                            case "RLH":         // line height of the root element
+                            case "DVB":         // dynamic viewport block size
+                            case "DVH":         // dynamic viewport height
+                            case "DVI":         // dynamic viewport inline size
+                            case "DVMAX":       // dynamic viewport maximum size
+                            case "DVMIN":       // dynamic viewport minimum size
+                            case "DVW":         // dynamic viewport width
+                            case "LVB":         // large viewport block size
+                            case "LVH":         // large viewport height
+                            case "LVI":         // large viewport inline size
+                            case "LVMAX":       // large viewport maximum size
+                            case "LVMIN":       // large viewport minimum size
+                            case "LVW":         // large viewport width
+                            case "SVB":         // small viewport block size
+                            case "SVH":         // small viewport height
+                            case "SVI":         // small viewport inline size
+                            case "SVMAX":       // small viewport maximum size
+                            case "SVMIN":       // small viewport minimum size
+                            case "SVW":         // small viewport width
+                            case "VB":          // viewport's block size
                             case "VH":          // viewport's height
+                            case "VI":          // viewport's inline size
                             case "VM":          // viewport width or height, whichever is smaller of the two (use VMIN)
-                            case "VMIN":        // minimum of the viewport's height and width
                             case "VMAX":        // maximum of the viewport's height and width
+                            case "VMIN":        // minimum of the viewport's height and width
+                            case "VW":          // viewport's width
                             case "GR":          // grid unit
                             case "GD":          // text grid unit
                                 tokenType = TokenType.RelativeLength;
@@ -1118,6 +1146,7 @@ namespace NUglify.Css
                             case "PX":          // pixels (1px == 1/96in)
                             case "PT":          // points (1pt == 1/72in)
                             case "PC":          // picas (1pc == 12pt)
+                            case "Q":           // quarter-millimeters
                                 tokenType = TokenType.AbsoluteLength;
                                 break;
 
@@ -1136,6 +1165,7 @@ namespace NUglify.Css
                             case "DPI":         // dots per inch
                             case "DPCM":        // dots per centimeter
                             case "DPPX":        // dots per pixel
+                            case "X":           // pixels per pixel
                                 tokenType = TokenType.Resolution;
                                 break;
 
