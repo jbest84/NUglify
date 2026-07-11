@@ -6068,10 +6068,13 @@ namespace NUglify.Css
                             var isCssVariable = text.StartsWith("--") && text.Length >= 3;
                             if (isCssVariable)
                             {
+                                // Custom property names and var() references are allowed to start
+                                // with digits after the leading double dash, so skip generic
+                                // identifier-start validation for that position.
                                 firstIndex = 2;
                             }
-                            
-                            if (firstIndex < text.Length)
+
+                            if (!isCssVariable && firstIndex < text.Length)
                             {
                                 // identifiers (including element names, classes, and IDs in selectors) can contain only the characters [a-zA-Z0-9] and ISO 10646 characters U+0080 and higher, plus the hyphen (-) and the underscore (_); they cannot start with a digit, two hyphens, or a hyphen followed by a digit. Identifiers can also contain escaped characters and any ISO 10646 character as a numeric code (see next item). For instance, the identifier "B&W?" may be written as "B\&W\?" or "B\26 W\3F".
                                 var firstChar = text[firstIndex];
