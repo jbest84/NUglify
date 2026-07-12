@@ -716,6 +716,36 @@ const findByCriteriaRecursive = function (collection, criteria) {
         }
 
         [Test]
+        public void Bug324()
+        {
+            var result = Uglify.Js(@"
+$(document).ready(function () {
+    let test = 123;
+    if (!window.a) {
+        function idle() {
+            console.log(""test"")
+        }
+        if (window.b) {
+            b(idle)
+        } else {
+            setTimeout(idle, 500)
+        }
+    }
+    function cancelTest() {
+        console.log(""test2"")
+    }
+    function why() {
+        console.log(""test3"")
+    }
+    window.test(why, cancelTest)
+});");
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("$(document).ready(function(){function n(){console.log(\"test2\")}function t(){console.log(\"test3\")}if(!window.a){function i(){console.log(\"test\")}window.b?b(i):setTimeout(i,500)}window.test(t,n)})"));
+        }
+
+        [Test]
         public void Bug406()
         {
             var settings = new CodeSettings
