@@ -654,6 +654,18 @@ namespace NUglify.JavaScript.Visitors
 
                 if (outputBraces)
                 {
+                    var needsTerminalSemicolonBeforeBrace =
+                        prevStatement != null
+                        && m_requiresSeparator.Query(prevStatement)
+                        && settings.TermSemicolons
+                        && node.Parent is FunctionObject { FunctionType: FunctionType.ArrowFunction };
+
+                    if (needsTerminalSemicolonBeforeBrace)
+                    {
+                        OutputPossibleLineBreak(';');
+                        MarkSegment(prevStatement, null, prevStatement.TerminatingContext);
+                    }
+
                     Unindent();
 
                     // if there weren't any statements, the curly-braces will be on the same line.
@@ -4190,6 +4202,11 @@ namespace NUglify.JavaScript.Visitors
                 {
                     m_startOfStatement = true;
                     block[0].Accept(this);
+                    if (settings.TermSemicolons && m_requiresSeparator.Query(block[0]))
+                    {
+                        OutputPossibleLineBreak(';');
+                        MarkSegment(block[0], null, block[0].TerminatingContext);
+                    }
                 }
                 Unindent();
             }

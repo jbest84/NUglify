@@ -953,6 +953,30 @@ export default { abc };
         }
 
         [Test]
+        public void Bug346()
+        {
+            var result = Uglify.Js(@"
+validations
+    .filter((validation) => !!validation)
+    .forEach((validation) => {
+        ({ validationValid, allInGroupEmpty, validForm } = this.ValidateValidation(validationValid, validation, allInGroupEmpty, validatorMessages, saveFrameId, validForm));
+    });
+", new CodeSettings
+            {
+                AmdSupport = true,
+                EvalTreatment = EvalTreatment.MakeAllSafe,
+                OutputMode = OutputMode.SingleLine,
+                ScriptVersion = ScriptVersion.EcmaScript6,
+                TermSemicolons = true,
+                MinifyCode = true,
+            });
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("validations.filter(n=>!!n).forEach(n=>{({validationValid,allInGroupEmpty,validForm}=this.ValidateValidation(validationValid,n,allInGroupEmpty,validatorMessages,saveFrameId,validForm));});"));
+        }
+
+        [Test]
         public void ObjectDestructuringAssignmentToThisPropertyKeepsCallInsideParens()
         {
             AssertMinified(@"
