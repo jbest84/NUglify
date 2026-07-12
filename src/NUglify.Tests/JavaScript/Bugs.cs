@@ -826,6 +826,26 @@ export default { abc };
             Assert.That(result.Code, Is.EqualTo("function n(n){alert(n)}export default{abc:n}"));
         }
 
+        [Test]
+        public void ObjectDestructuringAssignmentToThisPropertyKeepsCallInsideParens()
+        {
+            AssertMinified(@"
+class TEST {
+    constructor() { }
+
+    abc() {
+        const _varA = 0;
+
+        return { _varA };
+    }
+
+    def() {
+        ({ varA: this._varA } = abc());
+    }
+}
+", "class TEST{constructor(){}abc(){return{_varA:0}}def(){({varA:this._varA}=abc())}}");
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);

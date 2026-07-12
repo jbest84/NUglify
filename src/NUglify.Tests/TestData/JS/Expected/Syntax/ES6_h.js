@@ -1,1 +1,1 @@
-﻿function test1(){var t,i,r,n,u,f,e,o,s,h;for(t of["one","two","three"])alert(t);i=Set([1,3,4,2,3,2,17,17,1,17]);for(r of i)alert(r);n=new Map;n.set("one",1);n.set("two",2);for([u,f]of n)alert(u+" = "+f);({href:e,protocol:o,hostname:s,pathname:h})=location}
+function test1(){var t,i,r,n,u,f,e,o,s,h;for(t of["one","two","three"])alert(t);i=Set([1,3,4,2,3,2,17,17,1,17]);for(r of i)alert(r);n=new Map;n.set("one",1);n.set("two",2);for([u,f]of n)alert(u+" = "+f);({href:e,protocol:o,hostname:s,pathname:h}=location)}
