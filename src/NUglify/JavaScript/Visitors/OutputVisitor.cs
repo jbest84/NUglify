@@ -1916,7 +1916,14 @@ namespace NUglify.JavaScript.Visitors
                 Output(' ');
             }
 
-            if (node.PrimitiveType == PrimitiveType.String)
+            var propertyName = node.ToString();
+            if (node.IsIdentifier
+                && !string.IsNullOrEmpty(propertyName)
+                && JSScanner.IsSafeIdentifier(propertyName))
+            {
+                Output(propertyName);
+            }
+            else if (node.PrimitiveType == PrimitiveType.String)
             {
                 Visit(node as ConstantWrapper);
             }

@@ -893,6 +893,15 @@ var actions = {
         }
 
         [Test]
+        public void Bug329()
+        {
+            var result = Uglify.Js("class Foo{delete(){}do(){}for(){}while(){}class(){}new(){}}");
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("class Foo{delete(){}do(){}for(){}while(){}class(){}new(){}}"));
+        }
+
+        [Test]
         public void Bug434()
         {
             var result = Uglify.Js("class TestElement extends HTMLElement { static [Symbol.hasInstance](instance) { return true; } }");
@@ -974,6 +983,35 @@ validations
             Assert.That(result.HasErrors, Is.False,
                 () => "Uglify errors:\n" + string.Join("\n", result.Errors));
             Assert.That(result.Code, Is.EqualTo("validations.filter(n=>!!n).forEach(n=>{({validationValid,allInGroupEmpty,validForm}=this.ValidateValidation(validationValid,n,allInGroupEmpty,validatorMessages,saveFrameId,validForm));});"));
+        }
+
+        [Test]
+        public void Bug130()
+        {
+            var result = Uglify.Js(@"
+var test = function (async, a, b) {
+    async = 1;
+    async[1] = 2;
+    async();
+    async(a, b);
+};
+");
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("var test=function(n,t,i){n=1;n[1]=2;n();n(t,i)}"));
+
+            result = Uglify.Js(@"
+function foo(out, async) {
+  return async
+    ? out.replace('x', 'y')
+    : out.replace('w', 'y');
+}
+");
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("function foo(n,t){return t?n.replace(\"x\",\"y\"):n.replace(\"w\",\"y\")}"));
         }
 
         [Test]

@@ -2914,6 +2914,15 @@ namespace NUglify.JavaScript
             {
                 literalName = ParseObjectLiteralFieldName();
             }
+            else if ((functionType == FunctionType.Method || functionType == FunctionType.Getter || functionType == FunctionType.Setter)
+                && JSScanner.IsValidIdentifier(m_scanner.Identifier))
+            {
+                literalName = new ObjectLiteralField(m_scanner.Identifier, PrimitiveType.String, m_currentToken.Clone())
+                {
+                    IsIdentifier = true
+                };
+                GetNextToken();
+            }
             else
             {
                 string identifier = JSKeyword.CanBeIdentifier(m_currentToken.Token);
@@ -4317,7 +4326,7 @@ namespace NUglify.JavaScript
 
                 // async function expression
                 case JSToken.Async:
-                    var nextToken = PeekToken();
+                    var nextToken = PeekToken(false);
                     if (nextToken == JSToken.Function)
                     {
                         // treat 'async function' as a function expression
@@ -4329,18 +4338,17 @@ namespace NUglify.JavaScript
                         {
                             Name = JSKeyword.CanBeIdentifier(m_currentToken.Token)
                         };
-                        
+
                         GetNextToken();
-
-                        nextToken = PeekToken();
-                        if (nextToken == JSToken.Function)
-                            break;
-
-                        goto case (JSToken.LeftParenthesis);
+                        if (CurrentParenthesizedExpressionIsAsyncArrowParameters())
+                        {
+                            goto case (JSToken.LeftParenthesis);
+                        }
+                        break;
                     }
                     else if (nextToken == JSToken.Identifier)
                     {
-                        ast = new LookupExpression(m_currentToken.Clone())
+                        var asyncLookup = new LookupExpression(m_currentToken.Clone())
                         {
                             Name = JSKeyword.CanBeIdentifier(m_currentToken.Token)
                         };
@@ -4350,10 +4358,16 @@ namespace NUglify.JavaScript
                         ast = new LookupExpression(m_currentToken.Clone())
                         {
                             Name = m_scanner.Identifier,
-                            Parent = ast
+                            Parent = asyncLookup
                         };
                         GetNextToken();
-                        ast = ParseArrowFunction(ast);
+                        if (m_currentToken.Is(JSToken.ArrowFunction))
+                        {
+                            ast = ParseArrowFunction(ast);
+                            break;
+                        }
+
+                        ast = asyncLookup;
                         break;
                     }
                     else
@@ -4453,6 +4467,74 @@ namespace NUglify.JavaScript
 
             // can be a CallExpression, that is, followed by '.' or '(' or '[' or '`'
             return ParseMemberExpression(ast, newContexts);
+        }
+
+        private bool CurrentParenthesizedExpressionIsAsyncArrowParameters()
+        {
+            if (m_currentToken.IsNot(JSToken.LeftParenthesis))
+            {
+                return false;
+            }
+
+            var clonedScanner = m_scanner.PeekClone();
+            clonedScanner.SuppressErrors = true;
+
+            var parenDepth = 1;
+            while (parenDepth > 0)
+            {
+                var token = clonedScanner.ScanNextToken();
+                if (token.Is(JSToken.EndOfFile))
+                {
+                    return false;
+                }
+
+                switch (token.Token)
+                {
+                    case JSToken.LeftParenthesis:
+                        ++parenDepth;
+                        break;
+
+                    case JSToken.RightParenthesis:
+                        --parenDepth;
+                        break;
+                }
+            }
+
+            JSToken nextToken;
+            do
+            {
+                nextToken = clonedScanner.ScanNextToken().Token;
+            }
+            while (IsSkippablePeekToken(nextToken));
+
+            return nextToken == JSToken.ArrowFunction;
+        }
+
+        private static bool IsSkippablePeekToken(JSToken token)
+        {
+            switch (token)
+            {
+                case JSToken.WhiteSpace:
+                case JSToken.EndOfLine:
+                case JSToken.Error:
+                case JSToken.SingleLineComment:
+                case JSToken.MultipleLineComment:
+                case JSToken.PreprocessorDirective:
+                case JSToken.ConditionalCommentEnd:
+                case JSToken.ConditionalCommentStart:
+                case JSToken.ConditionalCompilationElse:
+                case JSToken.ConditionalCompilationElseIf:
+                case JSToken.ConditionalCompilationEnd:
+                case JSToken.ConditionalCompilationIf:
+                case JSToken.ConditionalCompilationOn:
+                case JSToken.ConditionalCompilationSet:
+                case JSToken.ConditionalCompilationVariable:
+                case JSToken.ConditionalIf:
+                    return true;
+
+                default:
+                    return false;
+            }
         }
 
         private RegExpLiteral ScanRegularExpression()
@@ -6063,7 +6145,7 @@ namespace NUglify.JavaScript
             return nextToken;
         }
 
-        private JSToken PeekToken()
+        private JSToken PeekToken(bool skipConditionalIf = true)
         {
             // clone the scanner, turn off any error reporting, and get the next token
             var clonedScanner = m_scanner.PeekClone();
@@ -6076,7 +6158,8 @@ namespace NUglify.JavaScript
                 JSToken.MultipleLineComment, JSToken.PreprocessorDirective, JSToken.ConditionalCommentEnd, JSToken.ConditionalCommentStart,
                 JSToken.ConditionalCompilationElse, JSToken.ConditionalCompilationElseIf, JSToken.ConditionalCompilationEnd,
                 JSToken.ConditionalCompilationIf, JSToken.ConditionalCompilationOn, JSToken.ConditionalCompilationSet,
-                JSToken.ConditionalCompilationVariable, JSToken.ConditionalIf))
+                JSToken.ConditionalCompilationVariable)
+                || (skipConditionalIf && peekToken.Is(JSToken.ConditionalIf)))
             {
                 peekToken = clonedScanner.ScanNextToken();
             }
