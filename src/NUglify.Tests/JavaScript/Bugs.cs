@@ -202,6 +202,14 @@ let TryParseLong = function (str, defaultValue) {
 	        TestHelper.Instance.RunTest();
         }
 
+        [Test]
+        public void Bug342()
+        {
+            AssertMinified(
+                "import bar, { foo } from './module.js'",
+                "import bar,{foo}from\"./module.js\"");
+        }
+
 
         [Test]
         public void Bug199_SourceMap()
