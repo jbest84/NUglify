@@ -505,6 +505,46 @@ class TestClass {
         }
 
         [Test]
+        public void Bug325()
+        {
+            var jsCode = @"
+var MyTest = /** @class */ (function () {
+    function MyTest() {
+    }
+    Object.defineProperty(MyTest.prototype, ""AnyDetail"", {
+        get: function () {
+            var _a, _b;
+            return (_b = ((_a = this.myArray) === null || _a === void 0 ? void 0 : _a.length) > 0) !== null && _b !== void 0 ? _b : false;
+        },
+        enumerable: false,
+        configurable: true
+    });
+    MyTest.prototype.RefreshData = function (data) {
+        this.myArray = data;
+    };
+    return MyTest;
+}());
+//# sourceMappingURL=test.g.jso.map
+";
+
+            var settings = new CodeSettings
+            {
+                PreserveFunctionNames = true,
+                TermSemicolons = true,
+                LocalRenaming = LocalRenaming.KeepAll
+            };
+
+            var result = Uglify.Js(jsCode, settings);
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Does.Not.Contain("return!0&&_b!==void 0?_b:!1"),
+                "The broken rewrite from bug #325 drops the assignment into _b and changes the getter result.");
+            Assert.That(result.Code, Does.Contain("return((_b=((_a=this.myArray)===null||_a===void 0?void 0:_a.length)>0),!0)&&_b!==void 0?_b:!1"),
+                "The minified getter should preserve the assignment into _b before the nullish-coalescing fallback.");
+        }
+
+        [Test]
         public void Bug306()
         {
 	        TestHelper.Instance.RunTest("-js:json");
