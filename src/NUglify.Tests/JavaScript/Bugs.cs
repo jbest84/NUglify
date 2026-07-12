@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text;
 using NUglify.Html;
 using NUglify.JavaScript;
+using NUglify.JavaScript.Syntax;
 using NUglify.Tests.JavaScript.Common;
 using NUnit.Framework;
 
@@ -513,6 +514,31 @@ class TestClass {
         public void Bug345()
         {
             TestHelper.Instance.RunTest("-rename:all");
+        }
+
+        [Test]
+        public void Bug349()
+        {
+            var parser = new JSParser();
+            var block = parser.Parse("var [name = \"\", email = \"\"] = fields;");
+            var declaration = block[0] as VarDeclaration;
+            var binding = declaration?[0].Binding as ArrayLiteral;
+            var referencePattern = BindingTransform.FromBinding(binding) as ArrayLiteral;
+
+            Assert.That(referencePattern, Is.Not.Null);
+            Assert.That(referencePattern.Elements.Count, Is.EqualTo(2));
+
+            var first = referencePattern.Elements[0] as InitializerNode;
+            Assert.That(first, Is.Not.Null);
+            Assert.That(first.Binding, Is.TypeOf<LookupExpression>());
+            Assert.That(((LookupExpression)first.Binding).Name, Is.EqualTo("name"));
+            Assert.That(first.Initializer, Is.TypeOf<ConstantWrapper>());
+
+            var second = referencePattern.Elements[1] as InitializerNode;
+            Assert.That(second, Is.Not.Null);
+            Assert.That(second.Binding, Is.TypeOf<LookupExpression>());
+            Assert.That(((LookupExpression)second.Binding).Name, Is.EqualTo("email"));
+            Assert.That(second.Initializer, Is.TypeOf<ConstantWrapper>());
         }
 
         [Test]

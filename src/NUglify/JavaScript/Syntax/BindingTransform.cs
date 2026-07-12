@@ -55,6 +55,7 @@ namespace NUglify.JavaScript.Syntax
             ArrayLiteral arrayLiteral;
             ObjectLiteral objectLiteral;
             ObjectLiteralProperty objectProperty;
+            InitializerNode initializerNode;
             var bindingIdentifier = node as BindingIdentifier;
             if (bindingIdentifier != null)
             {
@@ -72,6 +73,10 @@ namespace NUglify.JavaScript.Syntax
             else if ((objectProperty = node as ObjectLiteralProperty) != null)
             {
                 return ConvertFromBindingObjectProperty(objectProperty);
+            }
+            else if ((initializerNode = node as InitializerNode) != null)
+            {
+                return ConvertFromBindingInitializer(initializerNode);
             }
 
             node.Context.HandleError(JSError.UnableToConvertFromBinding, true);
@@ -155,6 +160,22 @@ namespace NUglify.JavaScript.Syntax
             }
 
             return prop;
+        }
+
+        static InitializerNode ConvertFromBindingInitializer(InitializerNode bindingInitializer)
+        {
+            InitializerNode initializerNode = null;
+            if (bindingInitializer != null)
+            {
+                initializerNode = new InitializerNode(bindingInitializer.Context)
+                {
+                    Binding = ConvertFromBinding(bindingInitializer.Binding),
+                    AssignContext = bindingInitializer.AssignContext,
+                    Initializer = bindingInitializer.Initializer
+                };
+            }
+
+            return initializerNode;
         }
 
         static ObjectLiteralField ConvertFromBindingObjectName(ObjectLiteralField bindingLiteral)
