@@ -425,6 +425,24 @@ class TestClass {
         }
 
         [Test]
+        public void Bug312()
+        {
+            var source = @"
+  <!--
+  var test = true;
+  var test1 = false;
+  var test 3 = ""maybe"";
+  -->
+";
+
+            Assert.DoesNotThrow(() =>
+            {
+                var result = Uglify.Js(source);
+                Assert.That(result.HasErrors, Is.True);
+            });
+        }
+
+        [Test]
         public void Bug306()
         {
 	        TestHelper.Instance.RunTest("-js:json");

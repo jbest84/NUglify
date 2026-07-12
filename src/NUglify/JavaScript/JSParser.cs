@@ -3740,12 +3740,15 @@ namespace NUglify.JavaScript
                     exprCtx = m_currentToken.Clone();
                     GetNextToken();
                     expr = ParseUnaryExpression(out dummy, false);
-                    ast = new UnaryExpression(exprCtx.CombineWith(expr.Context))
-                        {
-                            Operand = expr,
-                            OperatorContext = exprCtx,
-                            OperatorToken = opToken
-                        };
+                    if (expr != null)
+                    {
+                        ast = new UnaryExpression(exprCtx.CombineWith(expr.Context))
+                            {
+                                Operand = expr,
+                                OperatorContext = exprCtx,
+                                OperatorToken = opToken
+                            };
+                    }
                     break;
 
                 case JSToken.ConditionalCommentStart:
