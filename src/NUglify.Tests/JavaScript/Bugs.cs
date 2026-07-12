@@ -471,7 +471,7 @@ function init() {
         sel = -1;
     }
     desel();
-}", "function init(){function t(){n=-1}if(window.a==null)return;let n=1;t()}");
+}", "function init(){if(window.a==null)return;let n=1;function t(){n=-1}t()}");
         }
 
         [Test]
@@ -637,6 +637,27 @@ var property = myVar.property;", settings);
             AssertNoStrictModeErrors("({ options, labels, options: { labels: labelOptions } } = this);");
             AssertNoStrictModeErrors("function test({ options, labels, options: { labels: labelOptions } }) { return labelOptions; }");
             AssertNoStrictModeErrors("var test = ({ options, labels, options: { labels: labelOptions } }) => labelOptions;");
+        }
+
+        [Test]
+        public void Bug357()
+        {
+            var result = Uglify.Js(@"
+document.addEventListener(""DOMContentLoaded"", () => {
+    const body = document.querySelector(""body"");
+    if (!body) {
+        return;
+    }
+    const foo = ""bar"";
+    doIt();
+    function doIt() {
+        console.log(foo);
+    }
+});");
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("document.addEventListener(\"DOMContentLoaded\",()=>{const n=document.querySelector(\"body\");if(!n)return;const t=\"bar\";function i(){console.log(t)}i()})"));
         }
 
         [Test]

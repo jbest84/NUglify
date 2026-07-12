@@ -178,6 +178,8 @@ namespace NUglify.JavaScript.Visitors
 
         static int RelocateFunction(BlockStatement block, int insertAt, AstNode funcDecl)
         {
+            var functionObject = funcDecl as FunctionObject;
+
             // if this function declaration is being exported, then we need to work with the export
             // statement, not the function declaration.
             if (funcDecl.Parent is ExportStatement)
@@ -196,6 +198,8 @@ namespace NUglify.JavaScript.Visitors
                 // executed. So since there's a difference, just leave them as-is and only move valid funcdecls.
                 if (funcDecl.Parent == block)
                 {
+                    insertAt = AdjustFunctionInsertionPoint(block, insertAt, funcDecl, functionObject);
+
                     // remove the function from it's parent, which will take it away from where it is right now.
                     funcDecl.Parent.ReplaceChild(funcDecl, null);
 
@@ -214,6 +218,79 @@ namespace NUglify.JavaScript.Visitors
 
             // return the new position
             return insertAt;
+        }
+
+        static int AdjustFunctionInsertionPoint(BlockStatement block, int insertAt, AstNode funcDecl, FunctionObject functionObject)
+        {
+            if (functionObject == null)
+            {
+                return insertAt;
+            }
+
+            var originalIndex = block.IndexOf(funcDecl);
+            for (var ndx = insertAt; ndx < originalIndex; ++ndx)
+            {
+                if (CapturesBlockScopedBinding(functionObject, block[ndx]))
+                {
+                    insertAt = ndx + 1;
+                }
+            }
+
+            return insertAt;
+        }
+
+        static bool CapturesBlockScopedBinding(FunctionObject functionObject, AstNode statement)
+        {
+            if (statement == null)
+            {
+                return false;
+            }
+
+            if (statement is LexicalDeclaration
+                || (statement is ClassNode && statement.IsDeclaration))
+            {
+                foreach (var binding in BindingsVisitor.Bindings(statement))
+                {
+                    if (BindingReferencedWithinFunction(binding, functionObject))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        static bool BindingReferencedWithinFunction(BindingIdentifier binding, FunctionObject functionObject)
+        {
+            var variableField = binding.IfNotNull(b => b.VariableField);
+            if (variableField != null)
+            {
+                foreach (var reference in variableField.References)
+                {
+                    if (IsDescendantOf(reference as AstNode, functionObject.Body))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        static bool IsDescendantOf(AstNode node, AstNode ancestor)
+        {
+            while (node != null)
+            {
+                if (node == ancestor)
+                {
+                    return true;
+                }
+
+                node = node.Parent;
+            }
+
+            return false;
         }
 
         static int RelocateVar(BlockStatement block, int insertAt, VarDeclaration varStatement)
