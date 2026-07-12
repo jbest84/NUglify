@@ -902,6 +902,26 @@ var actions = {
         }
 
         [Test]
+        public void Bug337()
+        {
+            AssertMinified(
+                "let ga1 = (t) => ({1: 'a', 2: 'b', 3: 'c', 4: 'd', 5: 'e'})[t] ?? \"\";",
+                "let ga1=n=>({1:\"a\",2:\"b\",3:\"c\",4:\"d\",5:\"e\"})[n]??\"\"");
+
+            AssertMinified(
+                @"let ga2 = (t) => {
+    return ({
+        1: 'a',
+        2: 'b',
+        3: 'c',
+        4: 'd',
+        5: 'e'
+    })[t] ?? '';
+};",
+                "let ga2=n=>({1:\"a\",2:\"b\",3:\"c\",4:\"d\",5:\"e\"})[n]??\"\"");
+        }
+
+        [Test]
         public void Bug434()
         {
             var result = Uglify.Js("class TestElement extends HTMLElement { static [Symbol.hasInstance](instance) { return true; } }");

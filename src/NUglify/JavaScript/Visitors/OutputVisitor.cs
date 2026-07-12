@@ -777,6 +777,11 @@ namespace NUglify.JavaScript.Visitors
                                 needsParens = true;
                             }
                         }
+
+                        if (!needsParens && m_startOfStatement && node.Function is ObjectLiteral)
+                        {
+                            needsParens = true;
+                        }
                     }
 
                     AcceptNodeWithParens(node.Function, needsParens);
@@ -2610,6 +2615,11 @@ namespace NUglify.JavaScript.Visitors
                             }
                         }
 
+                        if (!needsParens && m_startOfStatement && node.Root is ObjectLiteral)
+                        {
+                            needsParens = true;
+                        }
+
                         AcceptNodeWithParens(node.Root, needsParens);
                     }
 
@@ -4141,6 +4151,13 @@ namespace NUglify.JavaScript.Visitors
                     if (requiresExplicitReturn)
                     {
                         Output("(");
+                    }
+                    else
+                    {
+                        // concise arrow bodies behave like an expression at the start of a statement.
+                        // Keep this state so member/call visitors can parenthesize leading object literals
+                        // such as ({a:1})[n] without widening to other contexts.
+                        m_startOfStatement = true;
                     }
                     node.Body[0].Accept(this);
                     if (requiresExplicitReturn)
