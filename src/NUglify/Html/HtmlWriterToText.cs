@@ -13,6 +13,10 @@ namespace NUglify.Html
     public class HtmlWriterToText : HtmlWriterBase
     {
 	    bool outputEnabled;
+	    bool documentHasBody;
+	    int bodyDepth;
+	    int headDepth;
+	    bool previousOutputEndedWithWhitespace;
 	    readonly HtmlToTextOptions options;
 
 	    public TextWriter Writer { get; }
@@ -33,34 +37,68 @@ namespace NUglify.Html
 	        this.options = options;
         }
 
+        void UpdateOutputEnabled()
+        {
+            outputEnabled = bodyDepth > 0 || (!documentHasBody && headDepth == 0);
+        }
+
         protected override void Write(string text)
         {
-            if (outputEnabled)
+            if (!outputEnabled)
             {
-                if (!ShouldKeepStructure)
-                {
-                    text = text.Replace("\r\n", " ")
-                        .Replace('\r', ' ')
-                        .Replace('\n', ' ')
-                        .Replace('\t', ' ')
-                        .Replace('\f', ' ');
-                }
-                
-                if (ShouldKeepFormatting || !ShouldKeepHtmlEscape)
-                {
-                    text = text.Replace("&lt;", "<");
-                    text = text.Replace("&amp;", "&");
-                }
+                return;
+            }
 
+            if (ShouldKeepFormatting || !ShouldKeepHtmlEscape)
+            {
+                text = text.Replace("&lt;", "<");
+                text = text.Replace("&amp;", "&");
+            }
+
+            if (ShouldKeepStructure)
+            {
                 Writer.Write(text);
+                previousOutputEndedWithWhitespace = text.Length > 0 && char.IsWhiteSpace(text[text.Length - 1]);
+                return;
+            }
+
+            foreach (var c in text)
+            {
+                WriteNormalizedChar(c);
             }
         }
 
         protected override void Write(char c)
         {
-            if (outputEnabled)
+            if (!outputEnabled)
             {
-                Writer.Write(ShouldKeepStructure ? c : c.IsSpace() ? ' ' : c);
+                return;
+            }
+
+            if (ShouldKeepStructure)
+            {
+                Writer.Write(c);
+                previousOutputEndedWithWhitespace = char.IsWhiteSpace(c);
+                return;
+            }
+
+            WriteNormalizedChar(c);
+        }
+
+        void WriteNormalizedChar(char c)
+        {
+            if (c.IsSpace())
+            {
+                if (!previousOutputEndedWithWhitespace)
+                {
+                    Writer.Write(' ');
+                    previousOutputEndedWithWhitespace = true;
+                }
+            }
+            else
+            {
+                Writer.Write(c);
+                previousOutputEndedWithWhitespace = false;
             }
         }
 
@@ -78,9 +116,16 @@ namespace NUglify.Html
 
         protected override void WriteStartTag(HtmlElement node)
         {
+            if (node.Name == "head")
+            {
+                headDepth++;
+                UpdateOutputEnabled();
+            }
+
             if (node.Name == "body")
             {
-                outputEnabled = true;
+                bodyDepth++;
+                UpdateOutputEnabled();
             }
             else if (ShouldKeepFormatting && node.Descriptor != null && (node.Descriptor.Category & ContentKind.Phrasing) != 0)
             {
@@ -99,9 +144,15 @@ namespace NUglify.Html
         {
 	        if (node.Name == "body")
 	        {
-		        outputEnabled = false;
+		        bodyDepth--;
+		        UpdateOutputEnabled();
 	        }
-            else if ((node.Descriptor == null || (node.Descriptor.Category & ContentKind.Phrasing) == 0 ||
+	        else if (node.Name == "head")
+	        {
+		        headDepth--;
+		        UpdateOutputEnabled();
+	        }
+	        else if ((node.Descriptor == null || (node.Descriptor.Category & ContentKind.Phrasing) == 0 ||
                 node.Name == "li"))
             {
                 Write('\n');
@@ -110,6 +161,30 @@ namespace NUglify.Html
             {
                 base.WriteEndTag(node);
             }
+        }
+
+        protected override void WriteChildren(HtmlNode node)
+        {
+            if (node is HtmlDocument)
+            {
+                documentHasBody = false;
+                bodyDepth = 0;
+                headDepth = 0;
+                previousOutputEndedWithWhitespace = false;
+
+                foreach (var descendant in node.FindAllDescendants())
+                {
+                    if (descendant is HtmlElement element && element.Name == "body")
+                    {
+                        documentHasBody = true;
+                        break;
+                    }
+                }
+
+                UpdateOutputEnabled();
+            }
+
+            base.WriteChildren(node);
         }
     }
 }

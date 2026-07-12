@@ -244,6 +244,22 @@ test
 		}
 
 		[Test]
+		public void Bug352()
+		{
+			input = """<h1><font face="Arial">Hello this is a page.</font></h1><p><font face="Arial" size="4"><br></font></p><h1><font face="Arial" size="4">C&#237;m</font></h1><p><font face="Arial" size="4"><br></font></p><p><font face="Arial" size="4">Bekezd&#233;s</font></p>""";
+			var htmlToText = Uglify.HtmlToText(input, HtmlToTextOptions.None, null);
+
+			equal(htmlToText.Code, "Hello this is a page. Cím Bekezdés ");
+			Assert.That(htmlToText.Errors, Is.Empty);
+
+			input = "<h1>test</h1>";
+			htmlToText = Uglify.HtmlToText(input, HtmlToTextOptions.None, null);
+
+			equal(htmlToText.Code, "test ");
+			Assert.That(htmlToText.Errors, Is.Empty);
+		}
+
+		[Test]
 		public void Bug420_CustomPropertiesStartingWithDigitsArePreservedInPrettyHtml()
 		{
 			input = @"<!DOCTYPE html>
