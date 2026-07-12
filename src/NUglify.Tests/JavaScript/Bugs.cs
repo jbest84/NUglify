@@ -922,6 +922,22 @@ var actions = {
         }
 
         [Test]
+        public void Bug340()
+        {
+            AssertMinified(
+                @"const VALIDATORS = {
+    '*'() {
+        return [];
+    },
+};",
+                "const VALIDATORS={\"*\"(){return[]}}");
+
+            AssertMinified(
+                "const foo={'bar'(){}};",
+                "const foo={\"bar\"(){}}");
+        }
+
+        [Test]
         public void Bug434()
         {
             var result = Uglify.Js("class TestElement extends HTMLElement { static [Symbol.hasInstance](instance) { return true; } }");
