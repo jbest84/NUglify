@@ -210,6 +210,59 @@ let TryParseLong = function (str, defaultValue) {
                 "import bar,{foo}from\"./module.js\"");
         }
 
+        [Test]
+        public void Bug339()
+        {
+            AssertMinifiedReparses(@"
+function test(a) {
+    const { IsTransitionDataset } = a;
+    if (IsTransitionDataset) {
+        return;
+    }
+    const left = 3;
+    const e = $(""a"").css('left', left + ""px"");
+}
+test('');
+");
+            AssertMinifiedReparses(@"
+function test(a) {
+    const { IsTransitionDataset } = a;
+    if (IsTransitionDataset) {
+        return;
+    }
+    let left = 3;
+    let e = $(""a"").css('left', left + ""px"");
+}
+test('');
+");
+            AssertMinifiedReparses(@"
+define(""MyModule"", [], () => {
+    return {
+        myProperty: () => {
+            if (someCondition()) {
+                const var1 = func1();
+                const var2 = func2();
+            }
+        }
+    };
+});
+");
+            var result = Uglify.Js(@"
+if (someCondition()) {
+    class Test {}
+}
+");
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+            Assert.That(result.Code, Is.EqualTo("if(someCondition()){class n{}}"));
+            AssertMinifiedReparses(@"
+if (someCondition()) {
+    class Test {}
+}
+");
+        }
+
 
         [Test]
         public void Bug199_SourceMap()
@@ -899,6 +952,17 @@ class TEST {
             Assert.That(result.HasErrors, Is.False,
                 () => "Uglify errors:\n" + string.Join("\n", result.Errors));
             Assert.That(result.Code, Is.EqualTo(expected));
+        }
+
+        private void AssertMinifiedReparses(string source)
+        {
+            var result = Uglify.Js(source);
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+
+            var reparsed = Uglify.Js(result.Code);
+            Assert.That(reparsed.HasErrors, Is.False,
+                () => "Reparse errors for output:\n" + result.Code + "\n" + string.Join("\n", reparsed.Errors));
         }
 
         private void AssertNoStrictModeErrors(string source)

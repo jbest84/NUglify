@@ -4219,7 +4219,8 @@ namespace NUglify.JavaScript.Visitors
         {
             return block != null
                 && block.Count == 1
-                && block[0] is LexicalDeclaration;
+                && (block[0] is LexicalDeclaration
+                    || (block[0] is ClassNode classNode && classNode.IsDeclaration));
         }
 
         string InlineSafeString(string text)
