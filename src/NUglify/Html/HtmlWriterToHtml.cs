@@ -81,7 +81,9 @@ namespace NUglify.Html
         protected override void WriteEndTag(HtmlElement node)
         {
 	        var descriptorName = node.Descriptor?.Name;
-	        if (ShouldPretty(node.Parent) && (descriptorName == null || !settings.TagsWithNonCollapsibleWhitespaces.ContainsKey(descriptorName)))
+	        if (ShouldPretty(node.Parent)
+                && !IsInNonCollapsibleWhitespaceContext(node.Parent)
+                && (descriptorName == null || !settings.TagsWithNonCollapsibleWhitespaces.ContainsKey(descriptorName)))
             {
 	            if (!node.Children.All(n => n is HtmlText) || settings.OutputTextNodesOnNewLine)
 	            {
@@ -218,7 +220,11 @@ namespace NUglify.Html
 	        var newlineForText = !isOnlyChild || settings.OutputTextNodesOnNewLine;
 	        var previousNodeIsNonBreaking = node.PreviousSibling is HtmlElement e && settings.InlineTagsPreservingSpacesAround.ContainsKey(e.Descriptor?.Name ?? "null");
 
-	        if (ShouldPretty(node.Parent) && newlineForText && (descriptorName == null || !settings.TagsWithNonCollapsibleWhitespaces.ContainsKey(descriptorName)) && !previousNodeIsNonBreaking)
+	        if (ShouldPretty(node.Parent)
+                && !IsInNonCollapsibleWhitespaceContext(node.Parent)
+                && newlineForText
+                && (descriptorName == null || !settings.TagsWithNonCollapsibleWhitespaces.ContainsKey(descriptorName))
+                && !previousNodeIsNonBreaking)
 	        {
 		        writer.WriteLine();
 		        this.WriteIndent();
@@ -256,6 +262,18 @@ namespace NUglify.Html
             base.Write(node);
         }
 
+        bool IsInNonCollapsibleWhitespaceContext(HtmlNode node)
+        {
+            for (var current = node as HtmlElement ?? node?.Parent; current != null; current = current.Parent)
+            {
+                var descriptorName = current.Descriptor?.Name;
+                if (descriptorName != null && settings.TagsWithNonCollapsibleWhitespaces.ContainsKey(descriptorName))
+                    return true;
+            }
+
+            return false;
+        }
+
         protected virtual bool ShouldPretty(HtmlElement node)
         {
 	        if (isFirstWrite)
@@ -263,6 +281,9 @@ namespace NUglify.Html
 
 	        if (!settings.PrettyPrint)
 		        return false;
+
+            if (IsInNonCollapsibleWhitespaceContext(node.Parent))
+                return false;
 
 	        var isFirstChild = node.Parent != null && node.Parent.FirstChild == node;
             

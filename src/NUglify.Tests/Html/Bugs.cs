@@ -260,6 +260,23 @@ test
 		}
 
 		[Test]
+		public void Bug348()
+		{
+			var settings = HtmlSettings.Pretty();
+			settings.IsFragmentOnly = true;
+
+			input = "<pre><code>let x = 1\nlet y = 3\n</code></pre>";
+			var html = Uglify.Html(input, settings);
+			equal(html.Code, "<pre><code>let x = 1\nlet y = 3\n</code></pre>");
+			Assert.That(html.Errors, Is.Empty);
+
+			input = "<pre><code>let x = 1\nlet y = 3</code></pre>";
+			html = Uglify.Html(input, settings);
+			equal(html.Code, "<pre><code>let x = 1\nlet y = 3</code></pre>");
+			Assert.That(html.Errors, Is.Empty);
+		}
+
+		[Test]
 		public void Bug420_CustomPropertiesStartingWithDigitsArePreservedInPrettyHtml()
 		{
 			input = @"<!DOCTYPE html>
