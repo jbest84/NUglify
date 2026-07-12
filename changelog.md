@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.22.0 (12 July 2026)
+- Added support for CSS Nesting, including top-level `&` handling and improved selector recovery.
+- Added support for `@container`, modern CSS viewport units, and font-relative units.
+- Fixed `@supports selector()` parsing and CSS custom identifier spacing in grid line names.
+- Fixed HTML minifier handling for custom true-valued attributes such as `hx-boost`, custom properties starting with digits, and `HtmlToText` fragments without a `<body>`.
+- Fixed BigInt constant folding overflow and a number of JavaScript parser issues around quoted method names, static computed class methods, `async` identifiers, malformed HTML-commented input, and object-literal member access in arrow concise bodies.
+- Fixed multiple destructuring bugs, including shorthand output, binding parsing, default-value conversion, object rest removal, assignment parenthesis placement, grouped destructuring output, and strict-mode handling for object patterns.
+- Fixed scope and rename issues involving duplicate `let`/`var` minified identifiers, nested lexical scopes, block-function rename collisions, manual rename pairs for class methods/accessors, block-scoped captures, and `const` rename collisions.
+- Fixed code generation and optimization bugs affecting lexical declarations in single-statement blocks, declaration-only `if` bodies, pruning of functions referenced by `export default` object literals, preservation of assignment side effects in nullish-coalescing comparisons, pretty-print whitespace in nested code blocks, and object-literal getter rewrites.
+
 ## v1.21.18 (8 July 2026)
 - Added support for CSS Media Queries Level 4.
 - Fixed `let`/`const` scope handling for `InvertIfReturn`.
