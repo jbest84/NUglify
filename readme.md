@@ -85,20 +85,7 @@ TODO
 
 ## Known Issues
 
-See the issues pages on github, however the only real known issue is:
-
-If you overload the `async` keyword as an identifier, like so:
-
-```
-function (async) {
-    async = 1; // this will work
-    async[1] = 2; // this will work
-    async(); // this line will be stripped
-    async(a,b); // this will end up as: a,b
-}
-```
-you'll see the commented behaviour. This is a difficult job to fix, but PRs welcome. I don't think this is a worth the effort to fix right now, you've got to be a real sadist to be doing this to yourself in the first place.
-See #130 if you want to try and fix it yourself.
+None
 
 ## Questions
 
