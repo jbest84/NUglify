@@ -336,7 +336,7 @@ namespace NUglify.JavaScript.Visitors
         {
             if (node != null)
             {
-                if (node.Body == null || node.Body.Count == 0)
+                if (node.Body == null || node.Body.Count == 0 || m_settings.TermSemicolons)
                 {
                     DoesRequire = false;
                 }
@@ -351,7 +351,7 @@ namespace NUglify.JavaScript.Visitors
         {
             if (node != null)
             {
-                if (node.Body == null)
+                if (node.Body == null || m_settings.TermSemicolons)
                 {
                     DoesRequire = false;
                 }
@@ -639,7 +639,7 @@ namespace NUglify.JavaScript.Visitors
         {
             if (node != null)
             {
-                if (node.Body == null || node.Body.Count == 0)
+                if (node.Body == null || node.Body.Count == 0 || m_settings.TermSemicolons)
                 {
                     DoesRequire = false;
                 }
@@ -654,7 +654,7 @@ namespace NUglify.JavaScript.Visitors
         {
             if (node != null)
             {
-                if (node.Body == null || node.Body.Count == 0)
+                if (node.Body == null || node.Body.Count == 0 || m_settings.TermSemicolons)
                 {
                     DoesRequire = false;
                 }
