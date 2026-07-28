@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.22.2 (28 July 2026)
+- Fixed JavaScript minification throwing when scope declaration reordering inserts moved `var` declarations at the end of a block.
+
 ## v1.22.1 (28 July 2026)
 - Fixed JavaScript minification adding an extra semicolon after loop-like statement bodies when `TermSemicolons` is enabled.
 
