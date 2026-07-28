@@ -1140,6 +1140,71 @@ class TEST {
 ", "class TEST{constructor(){}abc(){return{_varA:0}}def(){({varA:this._varA}=abc())}}");
         }
 
+        [Test]
+        public void Bug463()
+        {
+            var settings = new CodeSettings
+            {
+                TermSemicolons = true
+            };
+
+            void AssertTerminated(string source, string expected)
+            {
+                var result = Uglify.Js(source, settings);
+
+                Assert.That(result.HasErrors, Is.False,
+                    () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+                Assert.That(result.Code, Is.EqualTo(expected));
+            }
+
+            AssertTerminated(@"
+const numbers = [1,2,3];
+for (let i = 0; i < numbers.length; i++) {
+    console.log(numbers[i]);
+}
+", "const numbers=[1,2,3];for(let n=0;n<numbers.length;n++)console.log(numbers[n]);");
+
+            AssertTerminated(@"
+const numbers = [1,2,3];
+if (numbers[0]) {
+    for (let i = 0; i < numbers.length; i++) {
+        console.log(numbers[i]);
+    }
+} else {
+    console.log(""else branch"");
+}
+", "const numbers=[1,2,3];if(numbers[0])for(let n=0;n<numbers.length;n++)console.log(numbers[n]);else console.log(\"else branch\");");
+
+            AssertTerminated(@"
+const numbers = [1,2,3];
+for (const index in numbers) {
+    console.log(numbers[index]);
+}
+", "const numbers=[1,2,3];for(const n in numbers)console.log(numbers[n]);");
+
+            AssertTerminated(@"
+const numbers = [1,2,3];
+for (const number of numbers) {
+    console.log(number);
+}
+", "const numbers=[1,2,3];for(const n of numbers)console.log(n);");
+
+            AssertTerminated(@"
+const numbers = [1,2,3];
+let i = 0;
+while (i < numbers.length) {
+    console.log(numbers[i++]);
+}
+", "const numbers=[1,2,3];let i=0;while(i<numbers.length)console.log(numbers[i++]);");
+
+            AssertTerminated(@"
+var data = { number: 1 };
+with (data) {
+    console.log(number);
+}
+", "var data={number:1};with(data)console.log(number);");
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);
