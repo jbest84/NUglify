@@ -304,14 +304,16 @@ namespace NUglify.JavaScript.Visitors
             {
                 // if the var statement is at the next position to insert, then we don't need
                 // to do anything.
-                if (block[insertAt] != varStatement)
+                var currentStatement = insertAt < block.Count ? block[insertAt] : null;
+                var nextStatement = insertAt + 1 < block.Count ? block[insertAt + 1] : null;
+                if (currentStatement != varStatement)
                 {
                     // check to see if the current position is a var and we are the NEXT statement.
                     // if that's the case, we don't need to break out the initializer, just append all the
                     // vardecls as-is to the current position.
                     ForStatement forStatement;
-                    var existingVar = block[insertAt] as VarDeclaration;
-                    if (existingVar != null && block[insertAt + 1] == varStatement)
+                    var existingVar = currentStatement as VarDeclaration;
+                    if (existingVar != null && nextStatement == varStatement)
                     {
                         // two var-s one right after the other.
                         // just append our vardecls to the insertion point, then delete our statement
@@ -321,7 +323,7 @@ namespace NUglify.JavaScript.Visitors
                     else if (existingVar != null
                         && (forStatement = varStatement.Parent as ForStatement) != null
                         && forStatement.Initializer == varStatement
-                        && forStatement == block[insertAt + 1])
+                        && forStatement == nextStatement)
                     {
                         // this var statement is the initializer of a for-statement, which is
                         // immediately after the var we would insert our vardecls into.

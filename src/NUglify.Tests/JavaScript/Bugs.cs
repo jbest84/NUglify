@@ -1205,6 +1205,33 @@ with (data) {
 ", "var data={number:1};with(data)console.log(number);");
         }
 
+        [Test]
+        public void Bug465()
+        {
+            var result = Uglify.Js(@"
+var __awaiter = (this && this.__awaiter) || function (generator) {};
+
+$(() => __awaiter(function* () {}));
+
+var hd;
+
+const selector = '#hw';
+
+function f() {
+  return __awaiter(function* (c = false) {
+      try {
+      } catch (error) {
+          $(selector).slideToggle(() => {
+          });
+      }
+  });
+}
+");
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);
