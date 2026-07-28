@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.22.1 (28 July 2026)
+- Fixed JavaScript minification adding an extra semicolon after loop-like statement bodies when `TermSemicolons` is enabled.
+
 ## v1.22.0 (12 July 2026)
 - Added support for CSS Nesting, including top-level `&` handling and improved selector recovery.
 - Added support for `@container`, modern CSS viewport units, and font-relative units.
