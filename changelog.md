@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.22.3 (30 July 2026)
+- Fixed JavaScript minification throwing when scope reordering uses stale insertion indexes for moved directives, functions, and `var` declarations, including `for-in` declarations.
+
 ## v1.22.2 (28 July 2026)
 - Fixed JavaScript minification throwing when scope declaration reordering inserts moved `var` declarations at the end of a block.
 

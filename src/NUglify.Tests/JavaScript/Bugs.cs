@@ -1232,12 +1232,101 @@ function f() {
                 () => "Uglify errors:\n" + string.Join("\n", result.Errors));
         }
 
+        [Test]
+        public void Bug466()
+        {
+            AssertDoesNotThrow(@"
+var var1;
+(function (O) {})(O);
+var var2;
+const key = ""key"";
+function functionA() {  }
+function functionB() { O.myFunction(key); }
+");
+
+            AssertDoesNotThrow(@"
+for (var k in obj) {}
+var var2;
+const key = ""key"";
+function functionB() { O.myFunction(key); }
+");
+        }
+
+        [Test]
+        public void ScopeReorderingHandlesStaleInsertionPointCandidates()
+        {
+            foreach (var source in new[]
+            {
+@"
+/*! keep */
+""use strict"";
+var first;
+const key = ""key"";
+function functionA() { return key; }
+var second;
+",
+@"
+var first;
+const key = ""key"";
+class ClassA { method() { return key; } }
+function functionA() { return key; }
+var second;
+",
+@"
+var first;
+for (var i = 0; i < items.length; i++) {}
+var second;
+const key = ""key"";
+function functionA() { return key; }
+",
+@"
+var first;
+for (var key in obj) {}
+var second;
+const value = ""value"";
+function functionA() { return value; }
+",
+@"
+var first;
+while (condition) { var insideWhile = value; }
+var second;
+const key = ""key"";
+function functionA() { return key; }
+",
+@"
+var first;
+with (obj) { var insideWith = value; }
+var second;
+const key = ""key"";
+function functionA() { return key; }
+",
+@"
+export function exported() { return key; }
+var first;
+const key = ""key"";
+function functionA() { return key; }
+var second;
+",
+            })
+            {
+                AssertDoesNotThrow(source);
+            }
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);
             Assert.That(result.HasErrors, Is.False,
                 () => "Uglify errors:\n" + string.Join("\n", result.Errors));
             Assert.That(result.Code, Is.EqualTo(expected));
+        }
+
+        private void AssertDoesNotThrow(string source)
+        {
+            var result = Uglify.Js(source);
+
+            Assert.That(result.HasErrors, Is.False,
+                () => "Uglify errors:\n" + string.Join("\n", result.Errors));
         }
 
         private void AssertMinifiedReparses(string source)

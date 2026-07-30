@@ -158,6 +158,8 @@ namespace NUglify.JavaScript.Visitors
 
         static int RelocateDirectivePrologue(BlockStatement block, int insertAt, DirectivePrologue directivePrologue)
         {
+            insertAt = ValidInsertIndex(block, insertAt);
+
             // skip over any important comments
             while (insertAt < block.Count && (block[insertAt] is ImportantComment))
             {
@@ -165,19 +167,22 @@ namespace NUglify.JavaScript.Visitors
             }
 
             // if the one we want to insert is already at this spot, then we're good to go
-            if (block[insertAt] != directivePrologue)
+            var currentStatement = insertAt < block.Count ? block[insertAt] : null;
+            if (currentStatement != directivePrologue)
             {
                 // remove it from where it is right now and insert it into the proper location
                 directivePrologue.Parent.ReplaceChild(directivePrologue, null);
-                block.Insert(insertAt, directivePrologue);
+                block.Insert(ValidInsertIndex(block, insertAt), directivePrologue);
             }
 
             // and move up to the next slot
-            return ++insertAt;
+            return ValidInsertIndex(block, insertAt + 1);
         }
 
         static int RelocateFunction(BlockStatement block, int insertAt, AstNode funcDecl)
         {
+            insertAt = ValidInsertIndex(block, insertAt);
+
             var functionObject = funcDecl as FunctionObject;
 
             // if this function declaration is being exported, then we need to work with the export
@@ -187,7 +192,8 @@ namespace NUglify.JavaScript.Visitors
                 funcDecl = funcDecl.Parent;
             }
 
-            if (block[insertAt] != funcDecl)
+            var currentStatement = insertAt < block.Count ? block[insertAt] : null;
+            if (currentStatement != funcDecl)
             {
                 // technically function declarations can only be direct children of the program or a function block.
                 // and since we are passing in such a block, the parent of the function declaration better be that
@@ -206,6 +212,7 @@ namespace NUglify.JavaScript.Visitors
                     // now insert it into the block at the new location, incrementing the location so the next function
                     // will be inserted after it. It is important that they be in the same order as the source, or the semantics
                     // will change when there are functions with the same name.
+                    insertAt = ValidInsertIndex(block, insertAt);
                     block.Insert(insertAt++, funcDecl);
                 }
             }
@@ -295,6 +302,8 @@ namespace NUglify.JavaScript.Visitors
 
         static int RelocateVar(BlockStatement block, int insertAt, VarDeclaration varStatement)
         {
+            insertAt = ValidInsertIndex(block, insertAt);
+
             var forInParent = varStatement.Parent as ForInStatement;
             if (forInParent != null)
             {
@@ -467,7 +476,7 @@ namespace NUglify.JavaScript.Visitors
                             else
                             {
                                 // move the var to the insert point, incrementing the position or next time
-                                block.Insert(insertAt, varStatement);
+                                block.Insert(ValidInsertIndex(block, insertAt), varStatement);
                             }
                         }
                     }
@@ -479,6 +488,8 @@ namespace NUglify.JavaScript.Visitors
 
         static int RelocateForInVar(BlockStatement block, int insertAt, VarDeclaration varStatement, ForInStatement forIn)
         {
+            insertAt = ValidInsertIndex(block, insertAt);
+
             // there should only be one decl in the for-in var statement. There should not be any initializer.
             // If not, then ignore it
             VariableDeclaration varDecl;
@@ -530,7 +541,7 @@ namespace NUglify.JavaScript.Visitors
                     // if the statement at the insertion point is a var-statement already,
                     // then we just need to append our vardecls to it. Otherwise we'll insert our
                     // var statement at the right point
-                    var existingVar = block[insertAt] as VarDeclaration;
+                    var existingVar = insertAt < block.Count ? block[insertAt] as VarDeclaration : null;
                     if (existingVar != null)
                     {
                         // append the varstatement we want to move to the existing var, which will
@@ -546,6 +557,16 @@ namespace NUglify.JavaScript.Visitors
             }
 
             return insertAt;
+        }
+
+        static int ValidInsertIndex(BlockStatement block, int insertAt)
+        {
+            if (insertAt < 0)
+            {
+                return 0;
+            }
+
+            return insertAt <= block.Count ? insertAt : block.Count;
         }
 
         // unnest any child blocks
