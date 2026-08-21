@@ -17,7 +17,7 @@
     <PackageReadmeFile>readme.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/jbest84/NUglify</RepositoryUrl>
-    <Version>1.22.3</Version>
+    <Version>1.22.4</Version>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 

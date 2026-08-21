@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.22.4 (21 August 2026)
+- Fixed JavaScript minification incorrectly removing parentheses when nullish coalescing contains logical `||` or `&&`, which could emit syntax-invalid output such as `a??b||c`.
+
 ## v1.22.3 (30 July 2026)
 - Fixed JavaScript minification throwing when scope reordering uses stale insertion indexes for moved directives, functions, and `var` declarations, including `for-in` declarations.
 
