@@ -1253,6 +1253,13 @@ function functionB() { O.myFunction(key); }
         }
 
         [Test]
+        public void Bug468()
+        {
+            AssertMinified("var x = a ?? (b || c);", "var x=a??(b||c)");
+            AssertMinified("var x = a ?? (b && c);", "var x=a??(b&&c)");
+        }
+
+        [Test]
         public void ScopeReorderingHandlesStaleInsertionPointCandidates()
         {
             foreach (var source in new[]

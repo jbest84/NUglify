@@ -410,7 +410,7 @@ namespace NUglify.JavaScript.Visitors
 						{
 							leftNeedsParens = true;
 						}
-						else if (ourPrecedence == OperatorPrecedence.NullCoalesce && node.Operand1 is BinaryExpression binaryExpression && (binaryExpression.OperatorToken == JSToken.LogicalAnd || binaryExpression.OperatorToken == JSToken.LogicalOr)) // Nullish coalescing: the operands cannot be a logical OR || or logical AND && operator without grouping (see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_precedence [9])
+						else if (CoalesceAndLogicalOperatorsNeedParens(node.OperatorToken, node.Operand1))
 						{
 							leftNeedsParens = true;
 						}
@@ -472,6 +472,10 @@ namespace NUglify.JavaScript.Visitors
                         }
                         else if (node.Operand2 is BinaryExpression rightHandBinary)
                         {
+                            if (CoalesceAndLogicalOperatorsNeedParens(node.OperatorToken, rightHandBinary))
+                            {
+                                rightNeedsParens = true;
+                            }
                             // they are BOTH binary expressions. This is where it gets complicated.
                             // because most binary tokens (except assignment) are evaluated from left to right,
                             // if we have a binary expression with the same precedence on the RIGHT, then that means the
@@ -485,7 +489,7 @@ namespace NUglify.JavaScript.Visitors
                             // non-associate as well.
                             // commas never need the parens -- they always evaluate left to right and always return the
                             // right value, so any parens will always be unneccessary.
-                            if (ourPrecedence == rightPrecedence
+                            else if (ourPrecedence == rightPrecedence
                                 && ourPrecedence != OperatorPrecedence.Assignment
                                 && ourPrecedence != OperatorPrecedence.Comma)
                             {
@@ -4039,6 +4043,19 @@ namespace NUglify.JavaScript.Visitors
 
             // make SURE the start flag is reset
             m_startOfStatement = false;
+        }
+
+        static bool CoalesceAndLogicalOperatorsNeedParens(JSToken parentToken, AstNode childNode)
+        {
+            if (!(childNode is BinaryExpression childBinary))
+            {
+                return false;
+            }
+
+            return parentToken == JSToken.NullishCoalesce
+                ? childBinary.OperatorToken == JSToken.LogicalAnd || childBinary.OperatorToken == JSToken.LogicalOr
+                : (parentToken == JSToken.LogicalAnd || parentToken == JSToken.LogicalOr)
+                    && childBinary.OperatorToken == JSToken.NullishCoalesce;
         }
 
         static bool shouldWrapArgumentListInParens(FunctionObject node)
