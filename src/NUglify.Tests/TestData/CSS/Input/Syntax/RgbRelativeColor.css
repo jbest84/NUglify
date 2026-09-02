@@ -1,0 +1,6 @@
+a {
+    /* relative colors are valid in CSS5 https://www.w3.org/TR/css-color-5/#relative-colors */
+    color: rgb(from red r g b);
+    background-color: rgb(from var(--bg-color) r g b / 1);
+    color: hsl(from var(--c) h s l / 0.3);
+}

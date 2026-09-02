@@ -117,5 +117,19 @@ namespace NUglify.Tests.Css
             var retValue = TestHelper.Instance.RunTest();
             Assert.That(retValue == 0, "shouldn't have any errors");
         }
+
+        [Test]
+        public void RgbRelativeColor()
+        {
+            var retValue = TestHelper.Instance.RunTest();
+            Assert.That(retValue == 0, "shouldn't have any errors");
+        }
+
+        [Test]
+        public void RelativeColorCalc()
+        {
+            var retValue = TestHelper.Instance.RunTest();
+            Assert.That(retValue == 0, "shouldn't have any errors");
+        }
     }
 }

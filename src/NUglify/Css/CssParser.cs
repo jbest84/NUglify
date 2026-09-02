@@ -4711,6 +4711,28 @@ namespace NUglify.Css
                         useRGB = true;
                     }
 
+                    // relative color syntax (css color 5) can't be collapsed to hex - parse as a generic function
+                    if (CurrentTokenType == TokenType.Identifier
+                        && string.Compare(CurrentTokenText, "from", StringComparison.OrdinalIgnoreCase) == 0)
+                    {
+                        Append(sbRGB.ToString());
+
+                        if (ParseFunctionParameters() == Parsed.False)
+                        {
+                            ReportError(0, CssErrorCode.ExpectedExpression, CurrentTokenText);
+                        }
+
+                        if (CurrentTokenType == TokenType.Character && CurrentTokenText == ")")
+                        {
+                            AppendCurrent();
+                            SkipSpace();
+                            return Parsed.True;
+                        }
+
+                        ReportError(0, CssErrorCode.ExpectedClosingParenthesis, CurrentTokenText);
+                        return Parsed.False;
+                    }
+
                     bool? usingSpace = null;
                     bool usingFunc = false;
                     for (var ndx = 0; ndx < 4; ++ndx)
@@ -5124,6 +5146,13 @@ namespace NUglify.Css
                 case TokenType.Resolution:
                 case TokenType.Frequency:
                     // output it, skip any whitespace, and mark us as okay
+                    AppendCurrent();
+                    SkipSpace();
+                    parsed = Parsed.True;
+                    break;
+
+                case TokenType.Identifier:
+                    // calc constants (e, pi, infinity, NaN) and relative color component keywords
                     AppendCurrent();
                     SkipSpace();
                     parsed = Parsed.True;
