@@ -1260,6 +1260,30 @@ function functionB() { O.myFunction(key); }
         }
 
         [Test]
+        public void Bug471()
+        {
+            AssertMinified("let x = this._append`M${y}`;", "let x=this._append`M${y}`");
+            AssertMinified("this._append`M${this._x0 = this._x1 = +x},${this._y0 = this._y1 = +y}`;",
+                "this._append`M${this._x0=this._x1=+x},${this._y0=this._y1=+y}`");
+            AssertMinified("this._append`Z`;", "this._append`Z`");
+            AssertMinified("obj.append`M${y}`;", "obj.append`M${y}`");
+            AssertMinified("this.path.append`M${y}`;", "this.path.append`M${y}`");
+            AssertMinified("String.raw`M${y}`;", "String.raw`M${y}`");
+            AssertMinified(@"String.raw`\n${y}\u0041`;", @"String.raw`\n${y}\u0041`");
+            AssertMinified(@"String.raw`\n`;", @"String.raw`\n`");
+            AssertMinified(@"this._append`\n${y}\u0041`;", @"this._append`\n${y}\u0041`");
+            AssertMinified(@"this._append `\n${y}\u0041`;", @"this._append`\n${y}\u0041`");
+            AssertMinified("let x = this._append `M${y}` + suffix;", "let x=this._append`M${y}`+suffix");
+            AssertMinified("let x = this._append`M${y}` + suffix;", "let x=this._append`M${y}`+suffix");
+            AssertMinified("let x = this._append`M${y}`.length;", "let x=this._append`M${y}`.length");
+            AssertMinified("this._append`M${y}`();", "this._append`M${y}`()");
+            AssertMinified("this._append`M${y}``N${z}`;", "this._append`M${y}``N${z}`");
+            AssertMinified("consume(this._append`M${y}`, z);", "consume(this._append`M${y}`,z)");
+            AssertMinified("function draw(longName) { return this._append`M${longName}`; }",
+                "function draw(n){return this._append`M${n}`}");
+        }
+
+        [Test]
         public void ScopeReorderingHandlesStaleInsertionPointCandidates()
         {
             foreach (var source in new[]

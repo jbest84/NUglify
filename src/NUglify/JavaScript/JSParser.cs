@@ -4580,7 +4580,7 @@ namespace NUglify.JavaScript
             return constWrapper;
         }
 
-        private TemplateLiteral ParseTemplateLiteral()
+        private TemplateLiteral ParseTemplateLiteral(bool preserveRawText = false)
         {
             // create the root literal node
             ParsedVersion = ScriptVersion.EcmaScript6;
@@ -4588,7 +4588,8 @@ namespace NUglify.JavaScript
             var textContext = m_currentToken.Clone();
 
             LookupExpression lookup = null;
-            var text = m_scanner.StringLiteralValue;
+            // A tag can observe the raw spelling of escape sequences through strings.raw.
+            var text = preserveRawText ? m_currentToken.Code : m_scanner.StringLiteralValue;
 
             // see if it starts with an identifier
             var indexBackquote = text.IndexOf('`');
@@ -4632,7 +4633,7 @@ namespace NUglify.JavaScript
                         m_scanner.UpdateToken(UpdateHint.TemplateLiteral);
                         if (m_currentToken.Is(JSToken.TemplateLiteral))
                         {
-                            text = m_scanner.StringLiteralValue;
+                            text = preserveRawText ? m_currentToken.Code : m_scanner.StringLiteralValue;
                             var templateExpression = new TemplateLiteralExpression(expression.Context.Clone())
                                 {
                                     Expression = expression,
@@ -5401,20 +5402,8 @@ namespace NUglify.JavaScript
                             ParseMemberExpression_AccessField(ref expression, true);
                         break;
                     case JSToken.TemplateLiteral:
-                        var args = new AstNodeList(CurrentPositionContext);
-                        var templateLiteral = ParseTemplateLiteral();
-                        args.Append(templateLiteral);
-                        args.UpdateWith(templateLiteral.Context);
-
-	                    expression = new CallExpression(expression.Context.CombineWith(args.Context))
-	                    {
-		                    Function = expression,
-		                    Arguments = args,
-		                    InBrackets = false,
-		                    IsTaggedTemplateLiteral = true
-	                    };
-                        GetNextToken();
-                        return expression;
+                        expression = CreateTaggedTemplateCall(expression, ParseTemplateLiteral(preserveRawText: true));
+                        break;
                     default:
                         if (null != newContexts)
                         {
@@ -5435,6 +5424,19 @@ namespace NUglify.JavaScript
             }
         }
 
+        private static CallExpression CreateTaggedTemplateCall(AstNode function, TemplateLiteral literal)
+        {
+            var args = new AstNodeList(literal.Context.Clone());
+            args.Append(literal);
+            return new CallExpression(function.Context.CombineWith(literal.Context))
+            {
+                Function = function,
+                Arguments = args,
+                InBrackets = false,
+                IsTaggedTemplateLiteral = true
+            };
+        }
+
         void ParseMemberExpression_AccessField(ref AstNode expression, bool optionalChaining)
         {
             ConstantWrapper id = null;
@@ -5443,6 +5445,24 @@ namespace NUglify.JavaScript
             // we want the name context to start with the dot
             SourceContext nameContext = m_currentToken.Clone();
             GetNextToken();
+            if (m_currentToken.Is(JSToken.TemplateLiteral) && m_scanner.StringLiteralValue[0] != '`')
+            {
+                // The scanner includes an adjacent property name in the template token.
+                // Move that name to a member access so substitutions remain AST expressions.
+                var literal = ParseTemplateLiteral(preserveRawText: true);
+                var property = literal.Function;
+                literal.Function = null;
+                nameContext.UpdateWith(property.Context);
+                var member = new MemberExpression(expression.Context.CombineWith(nameContext), optionalChaining)
+                {
+                    Root = expression,
+                    Name = property.Name,
+                    NameContext = nameContext
+                };
+                expression = CreateTaggedTemplateCall(member, literal);
+                return;
+            }
+
             if (m_currentToken.IsNot(JSToken.Identifier))
             {
                 name = JSKeyword.CanBeIdentifier(m_currentToken.Token);
@@ -5462,14 +5482,6 @@ namespace NUglify.JavaScript
                     ReportError(JSError.KeywordUsedAsIdentifier);
                     name = m_currentToken.Code;
                     id = new ConstantWrapper(name, PrimitiveType.String, m_currentToken.Clone());
-                }
-                else if(expression is LookupExpression {Name: "String"} && m_currentToken.Token == JSToken.TemplateLiteral && m_currentToken.Code.StartsWith("raw`"))
-                {
-					// We have a String.raw`foo` situation
-                    // This ends up making the raw`foo` a MemberExpression instead of a method call. This is probably wrong but
-                    // template literal functions have a wierd syntax. Future bugs may turn out to mean this should be changed to
-                    // be a CallExpression which may need special treatment elsewhere (e.g. Visitors)
-					name = m_currentToken.Code;
                 }
                 else
                 {
