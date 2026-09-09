@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.23.0
+- Added support for CSS relative color syntax, including color component keywords in `calc()` expressions.
+- Fixed JavaScript minification failing on tagged templates after member access, including tags on `this`, while preserving substitutions and raw escape sequences (#471).
+
 ## v1.22.4 (21 August 2026)
 - Fixed JavaScript minification incorrectly removing parentheses when nullish coalescing contains logical `||` or `&&`, which could emit syntax-invalid output such as `a??b||c`.
 
