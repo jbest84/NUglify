@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.23.1
+- Fix optional chaining in property accessor minimization
+
 ## v1.23.0
 - Added support for CSS relative color syntax, including color component keywords in `calc()` expressions.
 - Fixed JavaScript minification failing on tagged templates after member access, including tags on `this`, while preserving substitutions and raw escape sequences (#471).
