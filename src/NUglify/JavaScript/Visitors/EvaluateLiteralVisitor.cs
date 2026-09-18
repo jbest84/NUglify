@@ -74,7 +74,8 @@ namespace NUglify.JavaScript.Visitors
                                 {
                                     Root = parentCall.Function,
                                     Name = newName,
-                                    NameContext = parentCall.Arguments[0].Context
+                                    NameContext = parentCall.Arguments[0].Context,
+                                    OptionalChaining = parentCall.OptionalChaining
                                 };
                             parentCall.Parent.ReplaceChild(parentCall, replacementMember);
                             return true;
@@ -102,7 +103,8 @@ namespace NUglify.JavaScript.Visitors
                                 {
                                     Root = parentCall.Function,
                                     Name = combinedString,
-                                    NameContext = parentCall.Arguments[0].Context
+                                    NameContext = parentCall.Arguments[0].Context,
+                                    OptionalChaining = parentCall.OptionalChaining
                                 };
                             parentCall.Parent.ReplaceChild(parentCall, replacementMember);
                             return true;

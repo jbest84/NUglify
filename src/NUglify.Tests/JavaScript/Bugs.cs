@@ -1284,6 +1284,23 @@ function functionB() { O.myFunction(key); }
         }
 
         [Test]
+        public void Bug473()
+        {
+            AssertMinified("let x = foo?.[\"bar\"];", "let x=foo?.bar");
+            AssertMinified("let x = foo?.[\"b\" + \"ar\"];", "let x=foo?.bar");
+
+            foreach (var source in new[]
+            {
+                "let x = foo?.[\"bar\"];",
+                "let x = foo?.[\"b\" + \"ar\"];"
+            })
+            {
+                var result = Uglify.Js(source, new CodeSettings { RenamePairs = "bar=baz" });
+                Assert.That(result.Code, Is.EqualTo("let x=foo?.baz"));
+            }
+        }
+
+        [Test]
         public void ScopeReorderingHandlesStaleInsertionPointCandidates()
         {
             foreach (var source in new[]
