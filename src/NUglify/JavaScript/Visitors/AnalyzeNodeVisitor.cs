@@ -1920,7 +1920,8 @@ namespace NUglify.JavaScript.Visitors
                                     {
                                         Root = node.Function,
                                         Name = argText,
-                                        NameContext = node.Arguments[0].Context
+                                        NameContext = node.Arguments[0].Context,
+                                        OptionalChaining = node.OptionalChaining
                                     };
                                 node.Parent.ReplaceChild(node, replacementMember);
 
@@ -1946,7 +1947,8 @@ namespace NUglify.JavaScript.Visitors
                                 {
                                     Root = node.Function,
                                     Name = argText,
-                                    NameContext = node.Arguments[0].Context
+                                    NameContext = node.Arguments[0].Context,
+                                    OptionalChaining = node.OptionalChaining
                                 };
                             node.Parent.ReplaceChild(node, replacementMember);
                             replacementMember.Accept(this);
