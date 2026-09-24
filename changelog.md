@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.23.3
+- Fix nested CSS selector parsing with pseudo-class selectors
+
 ## v1.23.2
 - Fix nested CSS selector parsing
 
