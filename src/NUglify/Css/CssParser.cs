@@ -2424,7 +2424,7 @@ namespace NUglify.Css
         }
 
         // Decides what the upcoming block-body item is by inspecting the current token and,
-        // for the ambiguous cases, a bounded look-ahead into a buffered waypoint (see
+        // for the ambiguous cases, look-ahead into a buffered waypoint (see
         // PeekSignificantTokens). The look-ahead never consumes the current token, so when the
         // item turns out to be a declaration it is handed to the completely unchanged
         // ParseDeclaration path -- preserving byte-for-byte output and error fidelity for
@@ -2562,7 +2562,10 @@ namespace NUglify.Css
                 || first.TokenType == TokenType.NestingSelector
                 || first.TokenType == TokenType.Identifier)
             {
-                return ContainsOpenBraceBeforeDeclarationTerminator(PeekSignificantTokens(5), 0)
+                // A selector list or attribute selector can have arbitrarily many tokens before
+                // its block opener. Peek through the next item delimiter instead of assuming the
+                // opener appears within a fixed token count.
+                return ContainsOpenBraceBeforeDeclarationTerminator(PeekSignificantTokens(int.MaxValue), 0)
                     ? BlockItemKind.NestedRule
                     : BlockItemKind.Declaration;
             }

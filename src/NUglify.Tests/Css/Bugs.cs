@@ -294,6 +294,34 @@ body
                 "@media screen and (width>100px){body{color:#f00}}");
         }
 
+        [Test]
+        public void Bug475NestedCompoundSelectorList()
+        {
+            AssertMinified(@"
+.has-horizontal-scroll {
+    th.is-frozen, td.is-frozen {
+        background: white;
+        position: sticky;
+    }
+}",
+                ".has-horizontal-scroll{th.is-frozen,td.is-frozen{background:#fff;position:sticky}}");
+        }
+
+        [Test]
+        public void Bug476NestedTypeAttributeSelector()
+        {
+            AssertMinified(@"
+.devtoolbar {
+    position: fixed;
+    bottom: 0;
+
+    select[data-role=environnementselector] {
+        width: 200px;
+    }
+}",
+                ".devtoolbar{position:fixed;bottom:0;select[data-role=environnementselector]{width:200px}}");
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Css(source);
