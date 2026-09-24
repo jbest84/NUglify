@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.23.2
+- Fix nested CSS selector parsing
+
 ## v1.23.1
 - Fix optional chaining in property accessor minimization
 
