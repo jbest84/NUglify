@@ -322,6 +322,21 @@ body
                 ".devtoolbar{position:fixed;bottom:0;select[data-role=environnementselector]{width:200px}}");
         }
 
+        [Test]
+        public void NestedTypeSelectorWithNotPseudoClass()
+        {
+            AssertMinified(@"
+.pagination {
+    margin: 0px;
+    padding: 5px;
+
+    li:not(.active) {
+        scale: 0.85;
+    }
+}",
+                ".pagination{margin:0;padding:5px;li:not(.active){scale:.85}}");
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Css(source);

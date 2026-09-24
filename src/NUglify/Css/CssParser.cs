@@ -2585,7 +2585,19 @@ namespace NUglify.Css
                     || second.TokenType == TokenType.Has
                     || IsCharacterToken(second, ":"))
                 {
-                    return ContainsOpenBraceBeforeDeclarationTerminator(extended, 1)
+                    // Most declarations end within this short peek. A longer pseudo-class
+                    // selector, such as li:not(.active), needs the same delimiter-bounded
+                    // look-ahead as the other type-selector continuations above.
+                    var isNestedRule = ContainsOpenBraceBeforeDeclarationTerminator(extended, 1);
+                    if (!isNestedRule && extended.Count >= 4
+                        && !IsCharacterToken(extended[extended.Count - 1], ";")
+                        && !IsCharacterToken(extended[extended.Count - 1], "}"))
+                    {
+                        isNestedRule = ContainsOpenBraceBeforeDeclarationTerminator(
+                            PeekSignificantTokens(int.MaxValue), 1);
+                    }
+
+                    return isNestedRule
                         ? BlockItemKind.NestedRule
                         : BlockItemKind.Declaration;
                 }
