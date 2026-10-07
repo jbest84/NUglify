@@ -1301,6 +1301,38 @@ function functionB() { O.myFunction(key); }
         }
 
         [Test]
+        public void Bug477()
+        {
+            AssertMinified("var f = (a, b,) => a + b;", "var f=(n,t)=>n+t");
+            AssertMinified("var g = (a = 1, b = 2,) => a + b;", "var g=(n=1,t=2)=>n+t");
+            AssertMinified("var f = (a,) => a;", "var f=n=>n");
+            AssertMinified("var f = (a, b, c,) => a + b + c;", "var f=(n,t,i)=>n+t+i");
+            AssertMinified("var f = async (a = 1, b = 2,) => a + b;", "var f=async(n=1,t=2)=>n+t");
+            AssertMinified("var f = ({a}, [b],) => a + b;", "var f=({a:n},[t])=>n+t");
+            AssertMinified("var f = (a, b, /* trailing */) /* arrow */ => { return a + b; };", "var f=(n,t)=>n+t");
+            AssertMinified("var f = (a = (1, 2), b = (c,) => c,) => a + b(3);", "var f=(n=(1,2),t=n=>n)=>n+t(3)");
+            AssertMinified("function h(a, b,) { return a + b; }", "function h(n,t){return n+t}");
+            AssertMinified("var i = function (a, b,) {};", "var i=function(){}");
+        }
+
+        [Test]
+        public void Bug477InvalidTrailingComma()
+        {
+            foreach (var source in new[]
+            {
+                "var f = (a, b,);",
+                "var f = (a = (1,),) => a;",
+                "var f = (...a,) => a;",
+                "var f = (a, ...b,) => b;",
+                "var f = (a, b, ...c,) => c;"
+            })
+            {
+                var result = Uglify.Js(source);
+                Assert.That(result.HasErrors, Is.True, source);
+            }
+        }
+
+        [Test]
         public void ScopeReorderingHandlesStaleInsertionPointCandidates()
         {
             foreach (var source in new[]
