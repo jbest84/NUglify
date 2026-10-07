@@ -3507,14 +3507,14 @@ namespace NUglify.JavaScript
         //    UnaryExpression '/' MultiplicativeExpression |
         //    UnaryExpression '%' MultiplicativeExpression
         //---------------------------------------------------------------------------------------
-        private AstNode ParseExpression(bool single = false, JSToken inToken = JSToken.None)
+        private AstNode ParseExpression(bool single = false, JSToken inToken = JSToken.None, bool allowTrailingComma = false)
         {
             bool bAssign;
             AstNode lhs = ParseUnaryExpression(out bAssign, false);
-            return ParseExpression(lhs, single, bAssign, inToken);
+            return ParseExpression(lhs, single, bAssign, inToken, allowTrailingComma);
         }
 
-        private AstNode ParseExpression(AstNode leftHandSide, bool single, bool bCanAssign, JSToken inToken)
+        private AstNode ParseExpression(AstNode leftHandSide, bool single, bool bCanAssign, JSToken inToken, bool allowTrailingComma = false)
         {
             // new op stack with dummy op
             Stack<SourceContext> opsStack = null;
@@ -3542,6 +3542,8 @@ namespace NUglify.JavaScript
                         termStack = new Stack<AstNode>();
                         termStack.Push(leftHandSide);
                     }
+
+                    var rightmostTerm = termStack.Peek();
 
                     // for the current token, get the operator precedence and whether it's a right-association operator
                     var prec = JSScanner.GetOperatorPrecedence(m_currentToken);
@@ -3628,11 +3630,25 @@ namespace NUglify.JavaScript
                             bCanAssign = (m_currentToken.Is(JSToken.Comma));
                         }
 
-                        // push the operator onto the operators stack
-                        opsStack.Push(m_currentToken.Clone());
-
-                        // push new term
+                        var operatorContext = m_currentToken.Clone();
                         GetNextToken();
+                        if (allowTrailingComma
+                            && operatorContext.Is(JSToken.Comma)
+                            && m_currentToken.Is(JSToken.RightParenthesis)
+                            && PeekToken() == JSToken.ArrowFunction)
+                        {
+                            // ES2017 permits a final separator in arrow parameters, but not after rest.
+                            // Leave the closing parenthesis for the grouping parser; there is no next term.
+                            if (rightmostTerm is UnaryExpression rest && rest.OperatorToken == JSToken.RestSpread)
+                            {
+                                operatorContext.HandleError(JSError.SyntaxError);
+                            }
+
+                            break;
+                        }
+
+                        // push the operator and new term onto their stacks
+                        opsStack.Push(operatorContext);
                         if (bCanAssign)
                         {
                             termStack.Push(ParseUnaryExpression(out bCanAssign, false));
@@ -4262,7 +4278,7 @@ namespace NUglify.JavaScript
                                 // now, we want to continue parsing if there is a comma
                                 if (m_currentToken.Is(JSToken.Comma))
                                 {
-                                    ast = ParseExpression(ast, false, true, JSToken.None);
+                                    ast = ParseExpression(ast, false, true, JSToken.None, allowTrailingComma: true);
                                 }
 
                                 if (m_currentToken.Is(JSToken.RightParenthesis))
@@ -4282,7 +4298,7 @@ namespace NUglify.JavaScript
                             else
                             {
                                 // parse an expression
-                                var operand = ParseExpression();
+                                var operand = ParseExpression(allowTrailingComma: true);
                                 if (m_currentToken.Is(JSToken.For))
                                 {
                                     // generator comprehension in Mozille format
