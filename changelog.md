@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.23.4
+- Fix trailing commas in arrow function parameter lists
+
 ## v1.23.3
 - Fix nested CSS selector parsing with pseudo-class selectors
 
