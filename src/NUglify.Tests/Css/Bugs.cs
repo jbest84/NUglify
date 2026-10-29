@@ -105,7 +105,7 @@ div :is(.test),
 div:is(.test) {
     color: var(--blue);
 }
-").Code, Is.EqualTo("body{font-family:'Franklin Gothic Medium','Arial Narrow',Arial,sans-serif}:root{--blue:'blue';--five:5px;--width:100px;--half-width:calc(var(--width)/2);--half-width-with-indent:calc(var(--half-width) + 16px);--half-width-with-indent:calc(10% + var(--half-width) + 16px)}.margin{margin:calc(2*var(--five));padding:var(--half-width-with-indent)}:is(.container) :is(.bold){font-weight:bold}:is(.container) :where(.bold){grid-template-areas:'myArea myArea myArea myArea myArea'}div :is(.test),div:is(.test){color:var(--blue)}"));
+").Code, Is.EqualTo("body{font-family:'Franklin Gothic Medium','Arial Narrow',Arial,sans-serif}:root{--blue:'blue';--five:5px;--width:100px;--half-width:calc(var(--width) / 2);--half-width-with-indent:calc(var(--half-width) + 16px);--half-width-with-indent:calc(10% + var(--half-width) + 16px)}.margin{margin:calc(2*var(--five));padding:var(--half-width-with-indent)}:is(.container) :is(.bold){font-weight:bold}:is(.container) :where(.bold){grid-template-areas:'myArea myArea myArea myArea myArea'}div :is(.test),div:is(.test){color:var(--blue)}"));
         }
 
         [Test]
