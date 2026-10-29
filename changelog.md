@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.23.6
+- Preserve typed zeroes in CSS math functions
+
 ## v1.23.5
 - Fix shorthand destructuring renaming in class fields
 
