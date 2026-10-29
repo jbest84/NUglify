@@ -5403,7 +5403,9 @@ namespace NUglify.Css
                     if ((m_mathContainsVariable || IsCurrentVarFunction()) &&
                         (IsMathUnitStart() || IsSignedMathUnit()))
                     {
-                        if (m_skippedSpace)
+                        // A closing parenthesis separates tokens on its own. Other
+                        // values need a separator even when a comment supplied it.
+                        if (m_skippedSpace || m_lastOutputString != ")")
                             Append(' ');
                         parsed = ParseProduct();
                         continue;

@@ -1,3 +1,4 @@
+using NUglify.Css;
 using NUnit.Framework;
 
 namespace NUglify.Tests.Css
@@ -5,6 +6,37 @@ namespace NUglify.Tests.Css
     [TestFixture]
     public class MathFunctions
     {
+        [TestCase("width:abs(10px/**/var(--empty,))", "width:abs(10px var(--empty,))")]
+        [TestCase("opacity:abs(1/**/var(--empty,))", "opacity:abs(1 var(--empty,))")]
+        [TestCase("opacity:abs(e/**/var(--empty,))", "opacity:abs(e var(--empty,))")]
+        [TestCase("width:abs(10px/**//**/var(--empty,))", "width:abs(10px var(--empty,))")]
+        [TestCase("width:abs(var(--empty,)/**/10px)", "width:abs(var(--empty,)10px)")]
+        [TestCase("width:abs(10px/**/var(--operator)/**/-1px)", "width:abs(10px var(--operator)-1px)")]
+        [TestCase("width:calc(max(1px,2px) + 10px/**/var(--empty,))", "width:calc(max(1px,2px) + 10px var(--empty,))")]
+        [TestCase("width:abs(10px/**/var(--empty,));padding:0px", "width:abs(10px var(--empty,));padding:0")]
+        public void PreservesMathTokenBoundariesAcrossRemovedComments(string declaration, string expected)
+        {
+            var result = Uglify.Css(".x{" + declaration + "}");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(".x{" + expected + "}"));
+        }
+
+        [Test]
+        public void PreservesMathTokenBoundariesWhenAllCommentsAreRemoved()
+        {
+            var settings = new CssSettings { CommentMode = CssComment.None };
+            var result = Uglify.Css(".x{width:abs(10px/*!keep*/var(--empty,))}", settings);
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(".x{width:abs(10px var(--empty,))}"));
+        }
+
+        [Test]
+        public void DoesNotCarryVariableMathStateIntoNextDeclaration()
+        {
+            var result = Uglify.Css(".x{width:abs(var(--empty,)10px);height:abs(1px 2px)}");
+            Assert.That(result.HasErrors, Is.True);
+        }
+
         [TestCase("abs(10px var(--operator) -1px)")]
         [TestCase("abs(10px var(--operator) +1px)")]
         [TestCase("abs(var(--empty,)-1px)")]
