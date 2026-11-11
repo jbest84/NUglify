@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.23.7
+- Fix JavaScript minification bugs involving nested object rest destructuring, required initializers in unreachable destructuring declarations, preservation of `yield` and `await` expressions, loose equality with `null`, strict-mode methods named `get` and `set`, and unbound method calls through comma expressions (#482).
+
 ## v1.23.6
 - Preserve typed zeroes in CSS math functions
 
