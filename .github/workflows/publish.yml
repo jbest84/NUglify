@@ -16,8 +16,9 @@ env:
 jobs:
   publish:
     runs-on: windows-latest
-    env:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout
@@ -76,8 +77,15 @@ jobs:
           path: artifacts/packages/*
           if-no-files-found: error
 
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Publish package to NuGet.org
-        if: env.NUGET_API_KEY != ''
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         shell: pwsh
         run: |
           $packages = @(Get-ChildItem 'artifacts/packages/*.nupkg' -File)
