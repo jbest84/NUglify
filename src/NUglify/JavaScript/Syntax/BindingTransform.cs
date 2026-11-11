@@ -78,6 +78,19 @@ namespace NUglify.JavaScript.Syntax
             {
                 return ConvertFromBindingInitializer(initializerNode);
             }
+            else if (node is UnaryExpression unary && unary.OperatorToken == JSToken.RestSpread)
+            {
+                return new UnaryExpression(unary.Context)
+                {
+                    OperatorToken = unary.OperatorToken,
+                    OperatorContext = unary.OperatorContext,
+                    Operand = ConvertFromBinding(unary.Operand)
+                };
+            }
+            else if (node is ConstantWrapper constant && constant.Value == Missing.Value)
+            {
+                return constant;
+            }
 
             node.Context.HandleError(JSError.UnableToConvertFromBinding, true);
             return null;

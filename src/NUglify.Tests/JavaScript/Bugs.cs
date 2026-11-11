@@ -1422,6 +1422,96 @@ var second;
             }
         }
 
+        [Test]
+        public void Bug482ObjectRestInNestedVar()
+        {
+            AssertMinified("function f(o) { var s = g(); if (o) { var { a, ...rest } = o; } return s; }",
+                "function f(n){var t=g(),i,r;return n&&(({a:i,...r}=n)),t}");
+            AssertMinifiedReparses("function f(o) { var s = g(); if (o) { var { a, ...rest } = o; } return s; }");
+            AssertMinifiedReparses("function f(o) { var s = g(); try { var { a: { b }, ...rest } = o; } catch (e) {} return s; }");
+            AssertMinifiedReparses("function f(o) { var s = g(); if (o) { var [a, , ...rest] = o; } return s; }");
+        }
+
+        [Test]
+        public void Bug482UnreachableDestructuring()
+        {
+            var result = Uglify.Js("function f(n) { return n; let { v: i } = { v: 0 }; for (; i < 2; i++) { const { v: a } = { v: i }; } } console.log(f(1));");
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Does.Not.Match(@"(?:let|var)\{[^}]+\}(?=[;}])"));
+            AssertMinifiedReparses(result.Code);
+        }
+
+        [TestCase("var", "{ v: i }", "{ v: 0 }")]
+        [TestCase("let", "{ v: i }", "{ v: 0 }")]
+        [TestCase("const", "{ v: i }", "{ v: 0 }")]
+        [TestCase("var", "[i]", "[0]")]
+        [TestCase("let", "[i]", "[0]")]
+        [TestCase("const", "[i]", "[0]")]
+        public void Bug482UnreachableDestructuringInitializers(string declaration, string binding, string initializer)
+        {
+            foreach (var exit in new[] { "return i", "throw i", "break", "continue" })
+            {
+                var source = "function f() { while (g()) { " + exit + "; " + declaration + " " + binding + " = " + initializer + "; use(i); } }";
+                var result = Uglify.Js(source);
+                Assert.That(result.HasErrors, Is.False, source);
+                Assert.That(result.Code, Does.Not.Match(@"(?:let|var|const)(?:\{[^}]*\}|\[[^\]]*\])(?=[;}])"), source);
+                AssertMinifiedReparses(result.Code);
+            }
+        }
+
+        [TestCase("const")]
+        [TestCase("let")]
+        [TestCase("var")]
+        public void Bug482UnusedYield(string declaration)
+        {
+            foreach (var prefix in new[] { "", "async " })
+            {
+                AssertMinified(prefix + "function* gen() { " + declaration + " ignored = yield \"first\"; yield \"second\"; }",
+                    prefix + "function*gen(){" + declaration + " n=yield\"first\";yield\"second\"}");
+                AssertMinified(prefix + "function* gen() { " + declaration + " ignored = yield* [1, 2]; yield 3; }",
+                    prefix + "function*gen(){" + declaration + " n=yield*[1,2];yield 3}");
+            }
+        }
+
+        [Test]
+        public void Bug482SuspensionExpressions()
+        {
+            AssertMinified("async function f() { const ignored = await 1; return 2; }",
+                "async function f(){const n=await 1;return 2}");
+            AssertMinified("function* gen() { return (yield 1) === true; }",
+                "function*gen(){return(yield 1)===!0}");
+        }
+
+        [Test]
+        public void Bug482NullEquality()
+        {
+            AssertMinified("function f() { var debug = false; return debug == null ? \"unset\" : \"set\"; } console.log(f(), null == 0, null == \"\", null != 0);",
+                "function f(){return\"set\"}console.log(f(),!1,!1,!0)");
+            AssertMinified("console.log(null == false, false == null, null != false, null == null, null != null, null == undefined, null != undefined, null == void 0);",
+                "console.log(!1,!1,!0,!0,!1,null==undefined,null!=undefined,null==void 0)");
+            AssertMinified("console.log(0 == null, \"\" == null, 0 != null, null == 1, null == true, null == \"0\");",
+                "console.log(!1,!1,!0,!1,!1,!1)");
+        }
+
+        [Test]
+        public void Bug482StrictGetSetMethods()
+        {
+            AssertMinifiedReparses("\"use strict\"; const o = {}; Object.defineProperty(o, \"p\", { get() { return 1; }, set(v) {} });");
+            AssertMinifiedReparses("\"use strict\"; const o = { get p() { return 1; }, set p(v) {} };");
+            AssertMinifiedReparses("export const o = { get() { return 1; }, set(v) {} };");
+        }
+
+        [Test]
+        public void Bug482UnboundMethodCall()
+        {
+            AssertMinified("\"use strict\"; const o = { m() { return this === o; } }; console.log((0, o.m)());",
+                "\"use strict\";const o={m(){return this===o}};console.log((0,o.m)())");
+            AssertMinified("(0, o[key])();", "(0,o[key])()");
+            AssertMinified("(0, 1, o.m)();", "(0,o.m)()");
+            AssertMinified("(0, eval)(source);", "(0,eval)(source)");
+            AssertMinified("consume((0, o.m));", "consume(o.m)");
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);

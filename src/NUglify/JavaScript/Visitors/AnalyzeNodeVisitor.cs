@@ -133,6 +133,8 @@ namespace NUglify.JavaScript.Visitors
                     case JSToken.Delete:
                     case JSToken.Increment:
                     case JSToken.Decrement:
+                    case JSToken.Yield:
+                    case JSToken.Await:
                         return true;
 
                     default:
@@ -841,15 +843,15 @@ namespace NUglify.JavaScript.Visitors
                                 if (node[ndxRemove].IsDeclaration)
                                 {
                                     // we want to keep this statement because it's a "declaration."
-                                    // HOWEVER, if this is a var or a let, let's whack the initializer, since it will 
-                                    // never get executed. Leave the initializers for const statements, even though 
-                                    // they will never get run, since it would be a syntax error to not have one.
+                                    // Remove unreachable initializers from simple var and let bindings.
+                                    // Const declarations and destructuring patterns require initializers.
                                     var declaration = node[ndxRemove] as Declaration;
                                     if (declaration != null && declaration.StatementToken != JSToken.Const)
                                     {
                                         for (var ndxDecl = 0; ndxDecl < declaration.Count; ++ndxDecl)
                                         {
-                                            if (declaration[ndxDecl].Initializer != null)
+                                            if (declaration[ndxDecl].Binding is BindingIdentifier
+                                                && declaration[ndxDecl].Initializer != null)
                                             {
                                                 DetachReferencesVisitor.Apply(declaration[ndxDecl].Initializer);
                                                 declaration[ndxDecl].Initializer = null;
@@ -3521,6 +3523,9 @@ namespace NUglify.JavaScript.Visitors
 
                             if (keyName == null)
                                 keyName = functionObject?.Binding?.Name;
+
+                            if (keyName == null)
+                                keyName = functionObject?.LiteralName?.Name;
 
                             if (keyName == null)
                             {
