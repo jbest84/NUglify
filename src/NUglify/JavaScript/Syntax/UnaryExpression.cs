@@ -69,9 +69,10 @@ namespace NUglify.JavaScript.Syntax
                 case JSToken.Delete:
                 case JSToken.RestSpread:
 				case JSToken.Await:
+                case JSToken.Yield:
                     // void returns undefined.
                     // delete returns number, but just return other
-                    // await is a function call, and could return anything so its unknown
+                    // Await and yield can produce values of any type.
                     return PrimitiveType.Other;
 
                 default:
@@ -119,7 +120,9 @@ namespace NUglify.JavaScript.Syntax
         {
             get
             {
-                return Operand.IfNotNull(o => o.IsConstant);
+                return OperatorToken != JSToken.Yield
+                    && OperatorToken != JSToken.Await
+                    && Operand.IfNotNull(o => o.IsConstant);
             }
         }
 

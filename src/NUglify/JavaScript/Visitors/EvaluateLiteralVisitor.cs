@@ -246,6 +246,8 @@ namespace NUglify.JavaScript.Visitors
                     case JSToken.Delete:
                     case JSToken.Increment:
                     case JSToken.Decrement:
+                    case JSToken.Yield:
+                    case JSToken.Await:
                         return true;
 
                     default:
@@ -1511,6 +1513,12 @@ namespace NUglify.JavaScript.Visitors
                             break;
                     }
                 }
+                else if (leftType != PrimitiveType.Other && right.PrimitiveType != PrimitiveType.Other
+                    && (leftType == PrimitiveType.Null || right.PrimitiveType == PrimitiveType.Null))
+                {
+                    // A null literal is unequal to a boolean, number, or string.
+                    newLiteral = new ConstantWrapper(false, PrimitiveType.Boolean, left.Context.FlattenToStart());
+                }
                 else if (left.IsOkayToCombine && right.IsOkayToCombine)
                 {
                     try
@@ -1579,6 +1587,11 @@ namespace NUglify.JavaScript.Visitors
                             }
                             break;
                     }
+                }
+                else if (leftType != PrimitiveType.Other && right.PrimitiveType != PrimitiveType.Other
+                    && (leftType == PrimitiveType.Null || right.PrimitiveType == PrimitiveType.Null))
+                {
+                    newLiteral = new ConstantWrapper(true, PrimitiveType.Boolean, left.Context.FlattenToStart());
                 }
                 else if (left.IsOkayToCombine && right.IsOkayToCombine)
                 {
@@ -2054,10 +2067,8 @@ namespace NUglify.JavaScript.Visitors
                                 var list = node.Operand2 as AstNodeList;
                                 if (list == null)
                                 {
-                                    // Check that the right operand is not an eval lookup as in (0, eval)('this');
-                                    // In this case, we cannot simplify the expression and we have to let the eval
-                                    // inside the CommaExpression.
-                                    if (!IsEvalLookup(node.Operand2))
+                                    // Preserve indirect eval and the unbound receiver of a member call.
+                                    if (!MustPreserveCommaReference(node, node.Operand2))
                                     {
                                         // not a list, just a single item, so we can just
                                         // replace this entire node with the one element
@@ -2068,7 +2079,7 @@ namespace NUglify.JavaScript.Visitors
                                 {
                                     // If the list has a single element, then we can just
                                     // replace this entire node with the one element
-                                    if (!IsEvalLookup(list[0]))
+                                    if (!MustPreserveCommaReference(node, list[0]))
                                     {
                                         ReplaceNodeCheckParens(node, list[0]);
                                     }
@@ -2199,10 +2210,29 @@ namespace NUglify.JavaScript.Visitors
             }
         }
 
-        bool IsEvalLookup(AstNode node)
+        static bool MustPreserveCommaReference(BinaryExpression comma, AstNode node)
         {
-            var lookupExpression = node as LookupExpression;
-            return lookupExpression != null && lookupExpression.Name == "eval";
+            while (node is GroupingOperator grouping)
+            {
+                node = grouping.Operand;
+            }
+
+            if (node is LookupExpression lookup && lookup.Name == "eval")
+            {
+                return true;
+            }
+
+            AstNode expression = comma;
+            while (expression.Parent is GroupingOperator)
+            {
+                expression = expression.Parent;
+            }
+
+            return expression.Parent is CallExpression call
+                && call.Function == expression
+                && !call.IsConstructor
+                && !call.InBrackets
+                && (node is MemberExpression || node is CallExpression { InBrackets: true });
         }
 
         public override void Visit(CallExpression node)
