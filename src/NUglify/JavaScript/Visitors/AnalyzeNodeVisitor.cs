@@ -4714,48 +4714,19 @@ namespace NUglify.JavaScript.Visitors
             if (path.Length > 0 && path[0].Equals("CurrentCulture", StringComparison.Ordinal))
             {
                 object currentObject = CultureInfo.CurrentCulture;
-                for(var ndx = 1; ndx < path.Length; ++ndx)
+                for (var ndx = 1; ndx < path.Length; ++ndx)
                 {
-                    var objectType = currentObject.GetType();
                     int index;
-                    if (objectType.IsArray && int.TryParse(path[ndx], out index))
+                    var arrayObject = currentObject as Array;
+                    if (arrayObject != null && int.TryParse(path[ndx], out index))
                     {
-                        // integer index into an array
-                        try
-                        {
-                            var getMethod = objectType.GetMethod("Get", new[] { typeof(int) });
-                            if (getMethod != null)
-                            {
-                                currentObject = getMethod.Invoke(currentObject, new object[] { index });
-                                continue;
-                            }
-                        }
-                        catch(AmbiguousMatchException)
-                        {
-                            // eat this exception
-                        }
+                        currentObject = arrayObject.GetValue(index);
                     }
-                    else
+                    else if (!TryGetCultureProperty(currentObject, path[ndx], out currentObject))
                     {
-                        // not an integer array index
-                        try
-                        {
-                            var propertyInfo = objectType.GetProperty(path[ndx]);
-                            if (propertyInfo != null)
-                            {
-                                currentObject = propertyInfo.GetValue(currentObject, null);
-                                continue;
-                            }
-                        }
-                        catch (AmbiguousMatchException)
-                        {
-                            // eat this exception
-                        }
+                        currentObject = null;
+                        break;
                     }
-
-                    // if we get here, never mind
-                    currentObject = null;
-                    break;
                 }
 
                 if (currentObject != null)
@@ -4766,7 +4737,7 @@ namespace NUglify.JavaScript.Visitors
                         // of the current object
                         node.Value = currentObject.ToString();
                     }
-                    else 
+                    else
                     {
                         // create an appropriate node and replace the token node with it
                         var newNode = CreateNodeFromObject(node.Context, currentObject);
@@ -4779,25 +4750,201 @@ namespace NUglify.JavaScript.Visitors
             return node;
         }
 
+        static bool TryGetCultureProperty(object item, string propertyName, out object value)
+        {
+            value = null;
+            var culture = item as CultureInfo;
+            if (culture != null)
+            {
+                switch (propertyName)
+                {
+                    case nameof(CultureInfo.Calendar): value = culture.Calendar; break;
+                    case nameof(CultureInfo.CompareInfo): value = culture.CompareInfo; break;
+                    case nameof(CultureInfo.CultureTypes): value = culture.CultureTypes; break;
+                    case nameof(CultureInfo.DateTimeFormat): value = culture.DateTimeFormat; break;
+                    case nameof(CultureInfo.DisplayName): value = culture.DisplayName; break;
+                    case nameof(CultureInfo.EnglishName): value = culture.EnglishName; break;
+                    case nameof(CultureInfo.IetfLanguageTag): value = culture.IetfLanguageTag; break;
+                    case nameof(CultureInfo.IsNeutralCulture): value = culture.IsNeutralCulture; break;
+                    case nameof(CultureInfo.IsReadOnly): value = culture.IsReadOnly; break;
+                    case nameof(CultureInfo.LCID): value = culture.LCID; break;
+                    case nameof(CultureInfo.Name): value = culture.Name; break;
+                    case nameof(CultureInfo.NativeName): value = culture.NativeName; break;
+                    case nameof(CultureInfo.NumberFormat): value = culture.NumberFormat; break;
+                    case nameof(CultureInfo.OptionalCalendars): value = culture.OptionalCalendars; break;
+                    case nameof(CultureInfo.Parent): value = culture.Parent; break;
+                    case nameof(CultureInfo.TextInfo): value = culture.TextInfo; break;
+                    case nameof(CultureInfo.ThreeLetterISOLanguageName): value = culture.ThreeLetterISOLanguageName; break;
+                    case nameof(CultureInfo.ThreeLetterWindowsLanguageName): value = culture.ThreeLetterWindowsLanguageName; break;
+                    case nameof(CultureInfo.TwoLetterISOLanguageName): value = culture.TwoLetterISOLanguageName; break;
+                    case nameof(CultureInfo.UseUserOverride): value = culture.UseUserOverride; break;
+                    default: return false;
+                }
+
+                return true;
+            }
+
+            var numberFormat = item as NumberFormatInfo;
+            if (numberFormat != null)
+            {
+                switch (propertyName)
+                {
+                    case nameof(NumberFormatInfo.CurrencyDecimalDigits): value = numberFormat.CurrencyDecimalDigits; break;
+                    case nameof(NumberFormatInfo.CurrencyDecimalSeparator): value = numberFormat.CurrencyDecimalSeparator; break;
+                    case nameof(NumberFormatInfo.CurrencyGroupSeparator): value = numberFormat.CurrencyGroupSeparator; break;
+                    case nameof(NumberFormatInfo.CurrencyGroupSizes): value = numberFormat.CurrencyGroupSizes; break;
+                    case nameof(NumberFormatInfo.CurrencyNegativePattern): value = numberFormat.CurrencyNegativePattern; break;
+                    case nameof(NumberFormatInfo.CurrencyPositivePattern): value = numberFormat.CurrencyPositivePattern; break;
+                    case nameof(NumberFormatInfo.CurrencySymbol): value = numberFormat.CurrencySymbol; break;
+                    case nameof(NumberFormatInfo.IsReadOnly): value = numberFormat.IsReadOnly; break;
+                    case nameof(NumberFormatInfo.NaNSymbol): value = numberFormat.NaNSymbol; break;
+                    case nameof(NumberFormatInfo.NativeDigits): value = numberFormat.NativeDigits; break;
+                    case nameof(NumberFormatInfo.NegativeInfinitySymbol): value = numberFormat.NegativeInfinitySymbol; break;
+                    case nameof(NumberFormatInfo.NegativeSign): value = numberFormat.NegativeSign; break;
+                    case nameof(NumberFormatInfo.NumberDecimalDigits): value = numberFormat.NumberDecimalDigits; break;
+                    case nameof(NumberFormatInfo.NumberDecimalSeparator): value = numberFormat.NumberDecimalSeparator; break;
+                    case nameof(NumberFormatInfo.NumberGroupSeparator): value = numberFormat.NumberGroupSeparator; break;
+                    case nameof(NumberFormatInfo.NumberGroupSizes): value = numberFormat.NumberGroupSizes; break;
+                    case nameof(NumberFormatInfo.NumberNegativePattern): value = numberFormat.NumberNegativePattern; break;
+                    case nameof(NumberFormatInfo.PercentDecimalDigits): value = numberFormat.PercentDecimalDigits; break;
+                    case nameof(NumberFormatInfo.PercentDecimalSeparator): value = numberFormat.PercentDecimalSeparator; break;
+                    case nameof(NumberFormatInfo.PercentGroupSeparator): value = numberFormat.PercentGroupSeparator; break;
+                    case nameof(NumberFormatInfo.PercentGroupSizes): value = numberFormat.PercentGroupSizes; break;
+                    case nameof(NumberFormatInfo.PercentNegativePattern): value = numberFormat.PercentNegativePattern; break;
+                    case nameof(NumberFormatInfo.PercentPositivePattern): value = numberFormat.PercentPositivePattern; break;
+                    case nameof(NumberFormatInfo.PercentSymbol): value = numberFormat.PercentSymbol; break;
+                    case nameof(NumberFormatInfo.PerMilleSymbol): value = numberFormat.PerMilleSymbol; break;
+                    case nameof(NumberFormatInfo.PositiveInfinitySymbol): value = numberFormat.PositiveInfinitySymbol; break;
+                    case nameof(NumberFormatInfo.PositiveSign): value = numberFormat.PositiveSign; break;
+                    default: return false;
+                }
+
+                return true;
+            }
+
+            var dateTimeFormat = item as DateTimeFormatInfo;
+            if (dateTimeFormat != null)
+            {
+                switch (propertyName)
+                {
+                    case nameof(DateTimeFormatInfo.AbbreviatedDayNames): value = dateTimeFormat.AbbreviatedDayNames; break;
+                    case nameof(DateTimeFormatInfo.AbbreviatedMonthGenitiveNames): value = dateTimeFormat.AbbreviatedMonthGenitiveNames; break;
+                    case nameof(DateTimeFormatInfo.AbbreviatedMonthNames): value = dateTimeFormat.AbbreviatedMonthNames; break;
+                    case nameof(DateTimeFormatInfo.AMDesignator): value = dateTimeFormat.AMDesignator; break;
+                    case nameof(DateTimeFormatInfo.Calendar): value = dateTimeFormat.Calendar; break;
+                    case nameof(DateTimeFormatInfo.CalendarWeekRule): value = dateTimeFormat.CalendarWeekRule; break;
+                    case nameof(DateTimeFormatInfo.DateSeparator): value = dateTimeFormat.DateSeparator; break;
+                    case nameof(DateTimeFormatInfo.DayNames): value = dateTimeFormat.DayNames; break;
+                    case nameof(DateTimeFormatInfo.FirstDayOfWeek): value = dateTimeFormat.FirstDayOfWeek; break;
+                    case nameof(DateTimeFormatInfo.FullDateTimePattern): value = dateTimeFormat.FullDateTimePattern; break;
+                    case nameof(DateTimeFormatInfo.IsReadOnly): value = dateTimeFormat.IsReadOnly; break;
+                    case nameof(DateTimeFormatInfo.LongDatePattern): value = dateTimeFormat.LongDatePattern; break;
+                    case nameof(DateTimeFormatInfo.LongTimePattern): value = dateTimeFormat.LongTimePattern; break;
+                    case nameof(DateTimeFormatInfo.MonthDayPattern): value = dateTimeFormat.MonthDayPattern; break;
+                    case nameof(DateTimeFormatInfo.MonthGenitiveNames): value = dateTimeFormat.MonthGenitiveNames; break;
+                    case nameof(DateTimeFormatInfo.MonthNames): value = dateTimeFormat.MonthNames; break;
+                    case nameof(DateTimeFormatInfo.NativeCalendarName): value = dateTimeFormat.NativeCalendarName; break;
+                    case nameof(DateTimeFormatInfo.PMDesignator): value = dateTimeFormat.PMDesignator; break;
+                    case nameof(DateTimeFormatInfo.RFC1123Pattern): value = dateTimeFormat.RFC1123Pattern; break;
+                    case nameof(DateTimeFormatInfo.ShortDatePattern): value = dateTimeFormat.ShortDatePattern; break;
+                    case nameof(DateTimeFormatInfo.ShortestDayNames): value = dateTimeFormat.ShortestDayNames; break;
+                    case nameof(DateTimeFormatInfo.ShortTimePattern): value = dateTimeFormat.ShortTimePattern; break;
+                    case nameof(DateTimeFormatInfo.SortableDateTimePattern): value = dateTimeFormat.SortableDateTimePattern; break;
+                    case nameof(DateTimeFormatInfo.TimeSeparator): value = dateTimeFormat.TimeSeparator; break;
+                    case nameof(DateTimeFormatInfo.UniversalSortableDateTimePattern): value = dateTimeFormat.UniversalSortableDateTimePattern; break;
+                    case nameof(DateTimeFormatInfo.YearMonthPattern): value = dateTimeFormat.YearMonthPattern; break;
+                    default: return false;
+                }
+
+                return true;
+            }
+
+            var textInfo = item as TextInfo;
+            if (textInfo != null)
+            {
+                switch (propertyName)
+                {
+                    case nameof(TextInfo.ANSICodePage): value = textInfo.ANSICodePage; break;
+                    case nameof(TextInfo.CultureName): value = textInfo.CultureName; break;
+                    case nameof(TextInfo.EBCDICCodePage): value = textInfo.EBCDICCodePage; break;
+                    case nameof(TextInfo.IsReadOnly): value = textInfo.IsReadOnly; break;
+                    case nameof(TextInfo.IsRightToLeft): value = textInfo.IsRightToLeft; break;
+                    case nameof(TextInfo.ListSeparator): value = textInfo.ListSeparator; break;
+                    case nameof(TextInfo.MacCodePage): value = textInfo.MacCodePage; break;
+                    case nameof(TextInfo.OEMCodePage): value = textInfo.OEMCodePage; break;
+                    default: return false;
+                }
+
+                return true;
+            }
+
+            var calendar = item as Calendar;
+            if (calendar != null)
+            {
+                switch (propertyName)
+                {
+                    case nameof(Calendar.AlgorithmType): value = calendar.AlgorithmType; break;
+                    case nameof(Calendar.Eras): value = calendar.Eras; break;
+                    case nameof(Calendar.IsReadOnly): value = calendar.IsReadOnly; break;
+                    case nameof(Calendar.MaxSupportedDateTime): value = calendar.MaxSupportedDateTime; break;
+                    case nameof(Calendar.MinSupportedDateTime): value = calendar.MinSupportedDateTime; break;
+                    case nameof(Calendar.TwoDigitYearMax): value = calendar.TwoDigitYearMax; break;
+                    default: return false;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        static string[] GetCulturePropertyNames(object item)
+        {
+            if (item is CultureInfo)
+            {
+                return [nameof(CultureInfo.Calendar), nameof(CultureInfo.CompareInfo), nameof(CultureInfo.CultureTypes), nameof(CultureInfo.DateTimeFormat), nameof(CultureInfo.DisplayName), nameof(CultureInfo.EnglishName), nameof(CultureInfo.IetfLanguageTag), nameof(CultureInfo.IsNeutralCulture), nameof(CultureInfo.IsReadOnly), nameof(CultureInfo.LCID), nameof(CultureInfo.Name), nameof(CultureInfo.NativeName), nameof(CultureInfo.NumberFormat), nameof(CultureInfo.OptionalCalendars), nameof(CultureInfo.Parent), nameof(CultureInfo.TextInfo), nameof(CultureInfo.ThreeLetterISOLanguageName), nameof(CultureInfo.ThreeLetterWindowsLanguageName), nameof(CultureInfo.TwoLetterISOLanguageName), nameof(CultureInfo.UseUserOverride)];
+            }
+
+            if (item is NumberFormatInfo)
+            {
+                return [nameof(NumberFormatInfo.CurrencyDecimalDigits), nameof(NumberFormatInfo.CurrencyDecimalSeparator), nameof(NumberFormatInfo.CurrencyGroupSeparator), nameof(NumberFormatInfo.CurrencyGroupSizes), nameof(NumberFormatInfo.CurrencyNegativePattern), nameof(NumberFormatInfo.CurrencyPositivePattern), nameof(NumberFormatInfo.CurrencySymbol), nameof(NumberFormatInfo.IsReadOnly), nameof(NumberFormatInfo.NaNSymbol), nameof(NumberFormatInfo.NativeDigits), nameof(NumberFormatInfo.NegativeInfinitySymbol), nameof(NumberFormatInfo.NegativeSign), nameof(NumberFormatInfo.NumberDecimalDigits), nameof(NumberFormatInfo.NumberDecimalSeparator), nameof(NumberFormatInfo.NumberGroupSeparator), nameof(NumberFormatInfo.NumberGroupSizes), nameof(NumberFormatInfo.NumberNegativePattern), nameof(NumberFormatInfo.PercentDecimalDigits), nameof(NumberFormatInfo.PercentDecimalSeparator), nameof(NumberFormatInfo.PercentGroupSeparator), nameof(NumberFormatInfo.PercentGroupSizes), nameof(NumberFormatInfo.PercentNegativePattern), nameof(NumberFormatInfo.PercentPositivePattern), nameof(NumberFormatInfo.PercentSymbol), nameof(NumberFormatInfo.PerMilleSymbol), nameof(NumberFormatInfo.PositiveInfinitySymbol), nameof(NumberFormatInfo.PositiveSign)];
+            }
+
+            if (item is DateTimeFormatInfo)
+            {
+                return [nameof(DateTimeFormatInfo.AbbreviatedDayNames), nameof(DateTimeFormatInfo.AbbreviatedMonthGenitiveNames), nameof(DateTimeFormatInfo.AbbreviatedMonthNames), nameof(DateTimeFormatInfo.AMDesignator), nameof(DateTimeFormatInfo.Calendar), nameof(DateTimeFormatInfo.CalendarWeekRule), nameof(DateTimeFormatInfo.DateSeparator), nameof(DateTimeFormatInfo.DayNames), nameof(DateTimeFormatInfo.FirstDayOfWeek), nameof(DateTimeFormatInfo.FullDateTimePattern), nameof(DateTimeFormatInfo.IsReadOnly), nameof(DateTimeFormatInfo.LongDatePattern), nameof(DateTimeFormatInfo.LongTimePattern), nameof(DateTimeFormatInfo.MonthDayPattern), nameof(DateTimeFormatInfo.MonthGenitiveNames), nameof(DateTimeFormatInfo.MonthNames), nameof(DateTimeFormatInfo.NativeCalendarName), nameof(DateTimeFormatInfo.PMDesignator), nameof(DateTimeFormatInfo.RFC1123Pattern), nameof(DateTimeFormatInfo.ShortDatePattern), nameof(DateTimeFormatInfo.ShortestDayNames), nameof(DateTimeFormatInfo.ShortTimePattern), nameof(DateTimeFormatInfo.SortableDateTimePattern), nameof(DateTimeFormatInfo.TimeSeparator), nameof(DateTimeFormatInfo.UniversalSortableDateTimePattern), nameof(DateTimeFormatInfo.YearMonthPattern)];
+            }
+
+            if (item is TextInfo)
+            {
+                return [nameof(TextInfo.ANSICodePage), nameof(TextInfo.CultureName), nameof(TextInfo.EBCDICCodePage), nameof(TextInfo.IsReadOnly), nameof(TextInfo.IsRightToLeft), nameof(TextInfo.ListSeparator), nameof(TextInfo.MacCodePage), nameof(TextInfo.OEMCodePage)];
+            }
+
+            if (item is Calendar)
+            {
+                return [nameof(Calendar.AlgorithmType), nameof(Calendar.Eras), nameof(Calendar.IsReadOnly), nameof(Calendar.MaxSupportedDateTime), nameof(Calendar.MinSupportedDateTime), nameof(Calendar.TwoDigitYearMax)];
+            }
+
+            return null;
+        }
+
         static AstNode CreateNodeFromObject(SourceContext context, object item)
         {
             if (item == null)
             {
                 return new ConstantWrapper(null, PrimitiveType.Null, context);
             }
-            
+
             if (item is String)
             {
-                // create a string literal
-                return  new ConstantWrapper(item, PrimitiveType.String, context);
+                return new ConstantWrapper(item, PrimitiveType.String, context);
             }
-            
+
             if (item is Boolean)
             {
-                // create a boolean literal
                 return new ConstantWrapper(item, PrimitiveType.Boolean, context);
             }
-            
+
             if (item is Int16
                 || item is UInt16
                 || item is Int32
@@ -4807,7 +4954,6 @@ namespace NUglify.JavaScript.Visitors
                 || item is Single
                 || item is Double)
             {
-                // create a numeric literal, forcing the number to double
                 return new ConstantWrapper(Convert.ToDouble(item, CultureInfo.InvariantCulture), PrimitiveType.Number, context);
             }
 
@@ -4816,19 +4962,20 @@ namespace NUglify.JavaScript.Visitors
                 return new ConstantWrapper(((DateTime)item).ToString("s", CultureInfo.InvariantCulture), PrimitiveType.String, context);
             }
 
-            if (item.GetType().GetTypeInfo().IsValueType)
+            if (item.GetType().IsValueType)
             {
                 return new ConstantWrapper(item.ToString(), PrimitiveType.String, context);
             }
 
             var arrayObject = item as Array;
+
             if (arrayObject != null)
             {
-                // create an array literal from the array
                 var arrayLiteral = new ArrayLiteral(context)
-                    {
-                        Elements = new AstNodeList(context)
-                    };
+                {
+                    Elements = new AstNodeList(context)
+                };
+
                 foreach (var element in arrayObject)
                 {
                     arrayLiteral.Elements.Append(CreateNodeFromObject(context, element));
@@ -4837,30 +4984,27 @@ namespace NUglify.JavaScript.Visitors
                 return arrayLiteral;
             }
 
-            // create an object literal from all the public unambiguous properties on the item object
-            var objectLiteral = new ObjectLiteral(context)
-                {
-                    Properties = new AstNodeList(context)
-                };
-            var properties = item.GetType().GetTypeInfo().GetDeclaredProperties();
-            foreach(var property in properties)
+            var propertyNames = GetCulturePropertyNames(item);
+
+            if (propertyNames == null)
             {
-                try
+                return new ConstantWrapper(item.ToString(), PrimitiveType.String, context);
+            }
+
+            var objectLiteral = new ObjectLiteral(context)
+            {
+                Properties = new AstNodeList(context)
+            };
+
+            foreach (var propertyName in propertyNames)
+            {
+                if (TryGetCultureProperty(item, propertyName, out object propertyValue) && propertyValue != item)
                 {
-                    var propertyValue = property.GetValue(item, null);
-                    if (propertyValue != item)
+                    objectLiteral.Properties.Append(new ObjectLiteralProperty(context)
                     {
-                        var valueNode = CreateNodeFromObject(context, propertyValue);
-                        objectLiteral.Properties.Append(new ObjectLiteralProperty(context)
-                        {
-                            Name = new ObjectLiteralField(property.Name, PrimitiveType.String, context),
-                            Value = valueNode,
-                        });
-                    }
-                }
-                catch(AmbiguousMatchException)
-                {
-                    // ignore this property
+                        Name = new ObjectLiteralField(propertyName, PrimitiveType.String, context),
+                        Value = CreateNodeFromObject(context, propertyValue),
+                    });
                 }
             }
 

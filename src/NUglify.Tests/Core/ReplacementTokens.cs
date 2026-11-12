@@ -1,5 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Text.Json;
 using NUglify.Css;
 using NUglify.JavaScript;
 using NUglify.JavaScript.Visitors;
@@ -76,6 +79,75 @@ namespace NUglify.Tests.Core
 
             actual = Parse(parser, settings, "var c = '%My-JSON%';");
             Assert.That(actual, Is.EqualTo("var c='{\"a\": 1, \"b\": 2, \"c\": [ 1, 2, 3 ] }'"));
+        }
+
+        [Test]
+        public void CurrentCultureReplacementTokensJS()
+        {
+            var previousCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+                var actual = Parse(new JSParser(), new CodeSettings(), "var a=%CurrentCulture.Name%;var b=%CurrentCulture.NumberFormat.CurrencySymbol%;var c=%CurrentCulture.DateTimeFormat.MonthNames.0%;");
+                Assert.That(actual, Is.EqualTo("var a=\"en-US\",b=\"$\",c=\"January\""));
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = previousCulture;
+            }
+        }
+
+        [TestCaseSource(nameof(SupportedCulturePropertyCases))]
+        public void CurrentCultureReplacementResolvesEverySupportedProperty(string propertyPath)
+        {
+            var previousCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+                var value = GetCulturePropertyValue(propertyPath);
+                var settings = new CodeSettings();
+                var actual = Parse(new JSParser(), settings, "var value=%CurrentCulture." + propertyPath + "%;");
+                var expected = Parse(new JSParser(), settings, "var value=" + GetExpectedLiteral(value) + ";");
+
+                Assert.That(actual, Is.EqualTo(expected), propertyPath);
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = previousCulture;
+            }
+        }
+
+        [TestCase("")]
+        [TestCase("NumberFormat")]
+        [TestCase("DateTimeFormat")]
+        [TestCase("TextInfo")]
+        [TestCase("Calendar")]
+        public void CurrentCultureReplacementCreatesLiteralsForSupportedObjectTypesJS(string propertyPath)
+        {
+            var previousCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+                var tokenPath = string.IsNullOrEmpty(propertyPath) ? "CurrentCulture" : "CurrentCulture." + propertyPath;
+                var actual = Parse(new JSParser(), new CodeSettings(), "var value=%" + tokenPath + "%;");
+
+                foreach (var expectedProperty in GetExpectedCultureObjectProperties(propertyPath))
+                {
+                    Assert.That(actual, Does.Contain(expectedProperty + ":"), expectedProperty);
+                }
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = previousCulture;
+            }
+        }
+
+        [Test]
+        public void CurrentCultureReplacementLeavesUnknownPropertiesUnchangedJS()
+        {
+            var actual = Parse(new JSParser(), new CodeSettings(), "var value=%CurrentCulture.NumberFormat.UnknownProperty%;");
+
+            Assert.That(actual, Is.EqualTo("var value=%CurrentCulture.NumberFormat.UnknownProperty%"));
         }
 
         [Test]
@@ -177,6 +249,80 @@ namespace NUglify.Tests.Core
             {
                 return reader.ReadToEnd();
             }
+        }
+
+        static string[] GetExpectedCultureObjectProperties(string propertyPath)
+        {
+            switch (propertyPath)
+            {
+                case "":
+                    return new[] { "Calendar", "CompareInfo", "CultureTypes", "DateTimeFormat", "DisplayName", "EnglishName", "IetfLanguageTag", "IsNeutralCulture", "IsReadOnly", "LCID", "Name", "NativeName", "NumberFormat", "OptionalCalendars", "Parent", "TextInfo", "ThreeLetterISOLanguageName", "ThreeLetterWindowsLanguageName", "TwoLetterISOLanguageName", "UseUserOverride" };
+                case "NumberFormat":
+                    return new[] { "CurrencyDecimalDigits", "CurrencyDecimalSeparator", "CurrencyGroupSeparator", "CurrencyGroupSizes", "CurrencyNegativePattern", "CurrencyPositivePattern", "CurrencySymbol", "IsReadOnly", "NaNSymbol", "NativeDigits", "NegativeInfinitySymbol", "NegativeSign", "NumberDecimalDigits", "NumberDecimalSeparator", "NumberGroupSeparator", "NumberGroupSizes", "NumberNegativePattern", "PercentDecimalDigits", "PercentDecimalSeparator", "PercentGroupSeparator", "PercentGroupSizes", "PercentNegativePattern", "PercentPositivePattern", "PercentSymbol", "PerMilleSymbol", "PositiveInfinitySymbol", "PositiveSign" };
+                case "DateTimeFormat":
+                    return new[] { "AbbreviatedDayNames", "AbbreviatedMonthGenitiveNames", "AbbreviatedMonthNames", "AMDesignator", "Calendar", "CalendarWeekRule", "DateSeparator", "DayNames", "FirstDayOfWeek", "FullDateTimePattern", "IsReadOnly", "LongDatePattern", "LongTimePattern", "MonthDayPattern", "MonthGenitiveNames", "MonthNames", "NativeCalendarName", "PMDesignator", "RFC1123Pattern", "ShortDatePattern", "ShortestDayNames", "ShortTimePattern", "SortableDateTimePattern", "TimeSeparator", "UniversalSortableDateTimePattern", "YearMonthPattern" };
+                case "TextInfo":
+                    return new[] { "ANSICodePage", "CultureName", "EBCDICCodePage", "IsReadOnly", "IsRightToLeft", "ListSeparator", "MacCodePage", "OEMCodePage" };
+                case "Calendar":
+                    return new[] { "AlgorithmType", "Eras", "IsReadOnly", "MaxSupportedDateTime", "MinSupportedDateTime", "TwoDigitYearMax" };
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(propertyPath));
+            }
+        }
+
+        static IEnumerable<TestCaseData> SupportedCulturePropertyCases()
+        {
+            foreach (var propertyPath in new[]
+            {
+                "CultureTypes", "DisplayName", "EnglishName", "IetfLanguageTag", "IsNeutralCulture", "IsReadOnly", "LCID", "Name", "NativeName", "ThreeLetterISOLanguageName", "ThreeLetterWindowsLanguageName", "TwoLetterISOLanguageName", "UseUserOverride",
+                "NumberFormat.CurrencyDecimalDigits", "NumberFormat.CurrencyDecimalSeparator", "NumberFormat.CurrencyGroupSeparator", "NumberFormat.CurrencyGroupSizes", "NumberFormat.CurrencyNegativePattern", "NumberFormat.CurrencyPositivePattern", "NumberFormat.CurrencySymbol", "NumberFormat.IsReadOnly", "NumberFormat.NaNSymbol", "NumberFormat.NativeDigits", "NumberFormat.NegativeInfinitySymbol", "NumberFormat.NegativeSign", "NumberFormat.NumberDecimalDigits", "NumberFormat.NumberDecimalSeparator", "NumberFormat.NumberGroupSeparator", "NumberFormat.NumberGroupSizes", "NumberFormat.NumberNegativePattern", "NumberFormat.PercentDecimalDigits", "NumberFormat.PercentDecimalSeparator", "NumberFormat.PercentGroupSeparator", "NumberFormat.PercentGroupSizes", "NumberFormat.PercentNegativePattern", "NumberFormat.PercentPositivePattern", "NumberFormat.PercentSymbol", "NumberFormat.PerMilleSymbol", "NumberFormat.PositiveInfinitySymbol", "NumberFormat.PositiveSign",
+                "DateTimeFormat.AbbreviatedDayNames", "DateTimeFormat.AbbreviatedMonthGenitiveNames", "DateTimeFormat.AbbreviatedMonthNames", "DateTimeFormat.AMDesignator", "DateTimeFormat.CalendarWeekRule", "DateTimeFormat.DateSeparator", "DateTimeFormat.DayNames", "DateTimeFormat.FirstDayOfWeek", "DateTimeFormat.FullDateTimePattern", "DateTimeFormat.IsReadOnly", "DateTimeFormat.LongDatePattern", "DateTimeFormat.LongTimePattern", "DateTimeFormat.MonthDayPattern", "DateTimeFormat.MonthGenitiveNames", "DateTimeFormat.MonthNames", "DateTimeFormat.NativeCalendarName", "DateTimeFormat.PMDesignator", "DateTimeFormat.RFC1123Pattern", "DateTimeFormat.ShortDatePattern", "DateTimeFormat.ShortestDayNames", "DateTimeFormat.ShortTimePattern", "DateTimeFormat.SortableDateTimePattern", "DateTimeFormat.TimeSeparator", "DateTimeFormat.UniversalSortableDateTimePattern", "DateTimeFormat.YearMonthPattern",
+                "TextInfo.ANSICodePage", "TextInfo.CultureName", "TextInfo.EBCDICCodePage", "TextInfo.IsReadOnly", "TextInfo.IsRightToLeft", "TextInfo.ListSeparator", "TextInfo.MacCodePage", "TextInfo.OEMCodePage",
+                "Calendar.AlgorithmType", "Calendar.Eras", "Calendar.IsReadOnly", "Calendar.MaxSupportedDateTime", "Calendar.MinSupportedDateTime", "Calendar.TwoDigitYearMax",
+            })
+            {
+                yield return new TestCaseData(propertyPath);
+            }
+        }
+
+        static object GetCulturePropertyValue(string propertyPath)
+        {
+            object value = CultureInfo.CurrentCulture;
+            foreach (var propertyName in propertyPath.Split('.'))
+            {
+                var array = value as Array;
+                int index;
+                if (array != null && int.TryParse(propertyName, out index))
+                {
+                    value = array.GetValue(index);
+                }
+                else
+                {
+                    value = value.GetType().GetProperty(propertyName).GetValue(value, null);
+                }
+            }
+
+            return value;
+        }
+
+        static string GetExpectedLiteral(object value)
+        {
+            if (value is string)
+            {
+                return JsonSerializer.Serialize(value);
+            }
+
+            if (value is DateTime)
+            {
+                return JsonSerializer.Serialize(((DateTime)value).ToString("s", CultureInfo.InvariantCulture));
+            }
+
+            if (value.GetType().IsEnum)
+            {
+                return JsonSerializer.Serialize(value.ToString());
+            }
+
+            return JsonSerializer.Serialize(value);
         }
 
         string Parse(JSParser parser, CodeSettings settings, string source)
