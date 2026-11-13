@@ -4722,6 +4722,10 @@ namespace NUglify.JavaScript.Visitors
                     {
                         currentObject = arrayObject.GetValue(index);
                     }
+                    else if (arrayObject != null && path[ndx] == nameof(Array.Length))
+                    {
+                        currentObject = arrayObject.Length;
+                    }
                     else if (!TryGetCultureProperty(currentObject, path[ndx], out currentObject))
                     {
                         currentObject = null;
@@ -4778,6 +4782,19 @@ namespace NUglify.JavaScript.Visitors
                     case nameof(CultureInfo.ThreeLetterWindowsLanguageName): value = culture.ThreeLetterWindowsLanguageName; break;
                     case nameof(CultureInfo.TwoLetterISOLanguageName): value = culture.TwoLetterISOLanguageName; break;
                     case nameof(CultureInfo.UseUserOverride): value = culture.UseUserOverride; break;
+                    default: return false;
+                }
+
+                return true;
+            }
+
+            var compareInfo = item as CompareInfo;
+            if (compareInfo != null)
+            {
+                switch (propertyName)
+                {
+                    case nameof(CompareInfo.LCID): value = compareInfo.LCID; break;
+                    case nameof(CompareInfo.Name): value = compareInfo.Name; break;
                     default: return false;
                 }
 
@@ -4869,6 +4886,7 @@ namespace NUglify.JavaScript.Visitors
                     case nameof(TextInfo.EBCDICCodePage): value = textInfo.EBCDICCodePage; break;
                     case nameof(TextInfo.IsReadOnly): value = textInfo.IsReadOnly; break;
                     case nameof(TextInfo.IsRightToLeft): value = textInfo.IsRightToLeft; break;
+                    case nameof(TextInfo.LCID): value = textInfo.LCID; break;
                     case nameof(TextInfo.ListSeparator): value = textInfo.ListSeparator; break;
                     case nameof(TextInfo.MacCodePage): value = textInfo.MacCodePage; break;
                     case nameof(TextInfo.OEMCodePage): value = textInfo.OEMCodePage; break;
@@ -4905,6 +4923,11 @@ namespace NUglify.JavaScript.Visitors
                 return [nameof(CultureInfo.Calendar), nameof(CultureInfo.CompareInfo), nameof(CultureInfo.CultureTypes), nameof(CultureInfo.DateTimeFormat), nameof(CultureInfo.DisplayName), nameof(CultureInfo.EnglishName), nameof(CultureInfo.IetfLanguageTag), nameof(CultureInfo.IsNeutralCulture), nameof(CultureInfo.IsReadOnly), nameof(CultureInfo.LCID), nameof(CultureInfo.Name), nameof(CultureInfo.NativeName), nameof(CultureInfo.NumberFormat), nameof(CultureInfo.OptionalCalendars), nameof(CultureInfo.Parent), nameof(CultureInfo.TextInfo), nameof(CultureInfo.ThreeLetterISOLanguageName), nameof(CultureInfo.ThreeLetterWindowsLanguageName), nameof(CultureInfo.TwoLetterISOLanguageName), nameof(CultureInfo.UseUserOverride)];
             }
 
+            if (item is CompareInfo)
+            {
+                return [nameof(CompareInfo.LCID), nameof(CompareInfo.Name)];
+            }
+
             if (item is NumberFormatInfo)
             {
                 return [nameof(NumberFormatInfo.CurrencyDecimalDigits), nameof(NumberFormatInfo.CurrencyDecimalSeparator), nameof(NumberFormatInfo.CurrencyGroupSeparator), nameof(NumberFormatInfo.CurrencyGroupSizes), nameof(NumberFormatInfo.CurrencyNegativePattern), nameof(NumberFormatInfo.CurrencyPositivePattern), nameof(NumberFormatInfo.CurrencySymbol), nameof(NumberFormatInfo.IsReadOnly), nameof(NumberFormatInfo.NaNSymbol), nameof(NumberFormatInfo.NativeDigits), nameof(NumberFormatInfo.NegativeInfinitySymbol), nameof(NumberFormatInfo.NegativeSign), nameof(NumberFormatInfo.NumberDecimalDigits), nameof(NumberFormatInfo.NumberDecimalSeparator), nameof(NumberFormatInfo.NumberGroupSeparator), nameof(NumberFormatInfo.NumberGroupSizes), nameof(NumberFormatInfo.NumberNegativePattern), nameof(NumberFormatInfo.PercentDecimalDigits), nameof(NumberFormatInfo.PercentDecimalSeparator), nameof(NumberFormatInfo.PercentGroupSeparator), nameof(NumberFormatInfo.PercentGroupSizes), nameof(NumberFormatInfo.PercentNegativePattern), nameof(NumberFormatInfo.PercentPositivePattern), nameof(NumberFormatInfo.PercentSymbol), nameof(NumberFormatInfo.PerMilleSymbol), nameof(NumberFormatInfo.PositiveInfinitySymbol), nameof(NumberFormatInfo.PositiveSign)];
@@ -4917,7 +4940,7 @@ namespace NUglify.JavaScript.Visitors
 
             if (item is TextInfo)
             {
-                return [nameof(TextInfo.ANSICodePage), nameof(TextInfo.CultureName), nameof(TextInfo.EBCDICCodePage), nameof(TextInfo.IsReadOnly), nameof(TextInfo.IsRightToLeft), nameof(TextInfo.ListSeparator), nameof(TextInfo.MacCodePage), nameof(TextInfo.OEMCodePage)];
+                return [nameof(TextInfo.ANSICodePage), nameof(TextInfo.CultureName), nameof(TextInfo.EBCDICCodePage), nameof(TextInfo.IsReadOnly), nameof(TextInfo.IsRightToLeft), nameof(TextInfo.LCID), nameof(TextInfo.ListSeparator), nameof(TextInfo.MacCodePage), nameof(TextInfo.OEMCodePage)];
             }
 
             if (item is Calendar)

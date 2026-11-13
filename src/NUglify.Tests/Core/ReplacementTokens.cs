@@ -122,6 +122,7 @@ namespace NUglify.Tests.Core
         [TestCase("DateTimeFormat")]
         [TestCase("TextInfo")]
         [TestCase("Calendar")]
+        [TestCase("CompareInfo")]
         public void CurrentCultureReplacementCreatesLiteralsForSupportedObjectTypesJS(string propertyPath)
         {
             var previousCulture = CultureInfo.CurrentCulture;
@@ -148,6 +149,25 @@ namespace NUglify.Tests.Core
             var actual = Parse(new JSParser(), new CodeSettings(), "var value=%CurrentCulture.NumberFormat.UnknownProperty%;");
 
             Assert.That(actual, Is.EqualTo("var value=%CurrentCulture.NumberFormat.UnknownProperty%"));
+        }
+
+        [TestCase("CompareInfo.LCID", "1033")]
+        [TestCase("CompareInfo.Name", "\"en-US\"")]
+        [TestCase("DateTimeFormat.MonthNames.Length", "13")]
+        [SetCulture("en-US")]
+        public void CurrentCultureReplacementPreservesExistingPropertyPaths(string path, string expectedLiteral)
+        {
+            var actual = Parse(new JSParser(), new CodeSettings(), $"var value=%CurrentCulture.{path}%;");
+            var expected = Parse(new JSParser(), new CodeSettings(), $"var value={expectedLiteral};");
+            Assert.That(actual, Is.EqualTo(expected));
+        }
+
+        [Test]
+        [SetCulture("en-US")]
+        public void CurrentCultureTextInfoObjectIncludesLcid()
+        {
+            var actual = Parse(new JSParser(), new CodeSettings(), "var value=%CurrentCulture.TextInfo%;");
+            Assert.That(actual, Does.Match("""[{,]\s*(?:LCID|"LCID"|'LCID')\s*:\s*1033\s*[,}]"""));
         }
 
         [Test]
@@ -265,6 +285,8 @@ namespace NUglify.Tests.Core
                     return new[] { "ANSICodePage", "CultureName", "EBCDICCodePage", "IsReadOnly", "IsRightToLeft", "ListSeparator", "MacCodePage", "OEMCodePage" };
                 case "Calendar":
                     return new[] { "AlgorithmType", "Eras", "IsReadOnly", "MaxSupportedDateTime", "MinSupportedDateTime", "TwoDigitYearMax" };
+                case "CompareInfo":
+                    return new[] { "LCID", "Name" };
                 default:
                     throw new ArgumentOutOfRangeException(nameof(propertyPath));
             }
@@ -275,6 +297,7 @@ namespace NUglify.Tests.Core
             foreach (var propertyPath in new[]
             {
                 "CultureTypes", "DisplayName", "EnglishName", "IetfLanguageTag", "IsNeutralCulture", "IsReadOnly", "LCID", "Name", "NativeName", "ThreeLetterISOLanguageName", "ThreeLetterWindowsLanguageName", "TwoLetterISOLanguageName", "UseUserOverride",
+                "CompareInfo.LCID", "CompareInfo.Name",
                 "NumberFormat.CurrencyDecimalDigits", "NumberFormat.CurrencyDecimalSeparator", "NumberFormat.CurrencyGroupSeparator", "NumberFormat.CurrencyGroupSizes", "NumberFormat.CurrencyNegativePattern", "NumberFormat.CurrencyPositivePattern", "NumberFormat.CurrencySymbol", "NumberFormat.IsReadOnly", "NumberFormat.NaNSymbol", "NumberFormat.NativeDigits", "NumberFormat.NegativeInfinitySymbol", "NumberFormat.NegativeSign", "NumberFormat.NumberDecimalDigits", "NumberFormat.NumberDecimalSeparator", "NumberFormat.NumberGroupSeparator", "NumberFormat.NumberGroupSizes", "NumberFormat.NumberNegativePattern", "NumberFormat.PercentDecimalDigits", "NumberFormat.PercentDecimalSeparator", "NumberFormat.PercentGroupSeparator", "NumberFormat.PercentGroupSizes", "NumberFormat.PercentNegativePattern", "NumberFormat.PercentPositivePattern", "NumberFormat.PercentSymbol", "NumberFormat.PerMilleSymbol", "NumberFormat.PositiveInfinitySymbol", "NumberFormat.PositiveSign",
                 "DateTimeFormat.AbbreviatedDayNames", "DateTimeFormat.AbbreviatedMonthGenitiveNames", "DateTimeFormat.AbbreviatedMonthNames", "DateTimeFormat.AMDesignator", "DateTimeFormat.CalendarWeekRule", "DateTimeFormat.DateSeparator", "DateTimeFormat.DayNames", "DateTimeFormat.FirstDayOfWeek", "DateTimeFormat.FullDateTimePattern", "DateTimeFormat.IsReadOnly", "DateTimeFormat.LongDatePattern", "DateTimeFormat.LongTimePattern", "DateTimeFormat.MonthDayPattern", "DateTimeFormat.MonthGenitiveNames", "DateTimeFormat.MonthNames", "DateTimeFormat.NativeCalendarName", "DateTimeFormat.PMDesignator", "DateTimeFormat.RFC1123Pattern", "DateTimeFormat.ShortDatePattern", "DateTimeFormat.ShortestDayNames", "DateTimeFormat.ShortTimePattern", "DateTimeFormat.SortableDateTimePattern", "DateTimeFormat.TimeSeparator", "DateTimeFormat.UniversalSortableDateTimePattern", "DateTimeFormat.YearMonthPattern",
                 "TextInfo.ANSICodePage", "TextInfo.CultureName", "TextInfo.EBCDICCodePage", "TextInfo.IsReadOnly", "TextInfo.IsRightToLeft", "TextInfo.ListSeparator", "TextInfo.MacCodePage", "TextInfo.OEMCodePage",
