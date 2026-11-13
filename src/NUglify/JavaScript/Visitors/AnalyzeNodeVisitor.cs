@@ -19,7 +19,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
+#if !NET10_0_OR_GREATER
 using System.Reflection;
+#endif
 using System.Text.RegularExpressions;
 using NUglify.Helpers;
 using NUglify.JavaScript.Syntax;
@@ -4722,13 +4724,8 @@ namespace NUglify.JavaScript.Visitors
                     {
                         currentObject = arrayObject.GetValue(index);
                     }
-                    else if (arrayObject != null && path[ndx] == nameof(Array.Length))
-                    {
-                        currentObject = arrayObject.Length;
-                    }
                     else if (!TryGetCultureProperty(currentObject, path[ndx], out currentObject))
                     {
-                        currentObject = null;
                         break;
                     }
                 }
@@ -4754,6 +4751,7 @@ namespace NUglify.JavaScript.Visitors
             return node;
         }
 
+#if NET10_0_OR_GREATER
         static bool TryGetCultureProperty(object item, string propertyName, out object value)
         {
             value = null;
@@ -4771,6 +4769,7 @@ namespace NUglify.JavaScript.Visitors
                     case nameof(CultureInfo.IetfLanguageTag): value = culture.IetfLanguageTag; break;
                     case nameof(CultureInfo.IsNeutralCulture): value = culture.IsNeutralCulture; break;
                     case nameof(CultureInfo.IsReadOnly): value = culture.IsReadOnly; break;
+                    case nameof(CultureInfo.KeyboardLayoutId): value = culture.KeyboardLayoutId; break;
                     case nameof(CultureInfo.LCID): value = culture.LCID; break;
                     case nameof(CultureInfo.Name): value = culture.Name; break;
                     case nameof(CultureInfo.NativeName): value = culture.NativeName; break;
@@ -4795,6 +4794,19 @@ namespace NUglify.JavaScript.Visitors
                 {
                     case nameof(CompareInfo.LCID): value = compareInfo.LCID; break;
                     case nameof(CompareInfo.Name): value = compareInfo.Name; break;
+                    case nameof(CompareInfo.Version): value = compareInfo.Version; break;
+                    default: return false;
+                }
+
+                return true;
+            }
+
+            if (item is SortVersion sortVersion)
+            {
+                switch (propertyName)
+                {
+                    case nameof(SortVersion.FullVersion): value = sortVersion.FullVersion; break;
+                    case nameof(SortVersion.SortId): value = sortVersion.SortId; break;
                     default: return false;
                 }
 
@@ -4813,6 +4825,7 @@ namespace NUglify.JavaScript.Visitors
                     case nameof(NumberFormatInfo.CurrencyNegativePattern): value = numberFormat.CurrencyNegativePattern; break;
                     case nameof(NumberFormatInfo.CurrencyPositivePattern): value = numberFormat.CurrencyPositivePattern; break;
                     case nameof(NumberFormatInfo.CurrencySymbol): value = numberFormat.CurrencySymbol; break;
+                    case nameof(NumberFormatInfo.DigitSubstitution): value = numberFormat.DigitSubstitution; break;
                     case nameof(NumberFormatInfo.IsReadOnly): value = numberFormat.IsReadOnly; break;
                     case nameof(NumberFormatInfo.NaNSymbol): value = numberFormat.NaNSymbol; break;
                     case nameof(NumberFormatInfo.NativeDigits): value = numberFormat.NativeDigits; break;
@@ -4902,11 +4915,90 @@ namespace NUglify.JavaScript.Visitors
                 switch (propertyName)
                 {
                     case nameof(Calendar.AlgorithmType): value = calendar.AlgorithmType; break;
+                    case nameof(GregorianCalendar.CalendarType) when calendar is GregorianCalendar gregorian:
+                        value = gregorian.CalendarType;
+                        break;
                     case nameof(Calendar.Eras): value = calendar.Eras; break;
+                    case nameof(HijriCalendar.HijriAdjustment) when calendar is HijriCalendar hijri:
+                        value = hijri.HijriAdjustment;
+                        break;
                     case nameof(Calendar.IsReadOnly): value = calendar.IsReadOnly; break;
                     case nameof(Calendar.MaxSupportedDateTime): value = calendar.MaxSupportedDateTime; break;
                     case nameof(Calendar.MinSupportedDateTime): value = calendar.MinSupportedDateTime; break;
                     case nameof(Calendar.TwoDigitYearMax): value = calendar.TwoDigitYearMax; break;
+                    default: return false;
+                }
+
+                return true;
+            }
+
+            if (item is Array array)
+            {
+                switch (propertyName)
+                {
+                    case nameof(Array.IsFixedSize): value = array.IsFixedSize; break;
+                    case nameof(Array.IsReadOnly): value = array.IsReadOnly; break;
+                    case nameof(Array.IsSynchronized): value = array.IsSynchronized; break;
+                    case nameof(Array.Length): value = array.Length; break;
+                    case nameof(Array.LongLength): value = array.LongLength; break;
+                    case nameof(Array.Rank): value = array.Rank; break;
+                    case nameof(Array.SyncRoot): value = array.SyncRoot; break;
+                    default: return false;
+                }
+
+                return true;
+            }
+
+            if (item is string text && propertyName == nameof(string.Length))
+            {
+                value = text.Length;
+                return true;
+            }
+
+            if (item is DateTime dateTime)
+            {
+                switch (propertyName)
+                {
+                    case nameof(DateTime.Date): value = dateTime.Date; break;
+                    case nameof(DateTime.Day): value = dateTime.Day; break;
+                    case nameof(DateTime.DayOfWeek): value = dateTime.DayOfWeek; break;
+                    case nameof(DateTime.DayOfYear): value = dateTime.DayOfYear; break;
+                    case nameof(DateTime.Hour): value = dateTime.Hour; break;
+                    case nameof(DateTime.Kind): value = dateTime.Kind; break;
+                    case nameof(DateTime.Microsecond): value = dateTime.Microsecond; break;
+                    case nameof(DateTime.Millisecond): value = dateTime.Millisecond; break;
+                    case nameof(DateTime.Minute): value = dateTime.Minute; break;
+                    case nameof(DateTime.Month): value = dateTime.Month; break;
+                    case nameof(DateTime.Nanosecond): value = dateTime.Nanosecond; break;
+                    case nameof(DateTime.Second): value = dateTime.Second; break;
+                    case nameof(DateTime.Ticks): value = dateTime.Ticks; break;
+                    case nameof(DateTime.TimeOfDay): value = dateTime.TimeOfDay; break;
+                    case nameof(DateTime.Year): value = dateTime.Year; break;
+                    default: return false;
+                }
+
+                return true;
+            }
+
+            if (item is TimeSpan time)
+            {
+                switch (propertyName)
+                {
+                    case nameof(TimeSpan.Days): value = time.Days; break;
+                    case nameof(TimeSpan.Hours): value = time.Hours; break;
+                    case nameof(TimeSpan.Microseconds): value = time.Microseconds; break;
+                    case nameof(TimeSpan.Milliseconds): value = time.Milliseconds; break;
+                    case nameof(TimeSpan.Minutes): value = time.Minutes; break;
+                    case nameof(TimeSpan.Nanoseconds): value = time.Nanoseconds; break;
+                    case nameof(TimeSpan.Seconds): value = time.Seconds; break;
+                    case nameof(TimeSpan.Ticks): value = time.Ticks; break;
+                    case nameof(TimeSpan.TotalDays): value = time.TotalDays; break;
+                    case nameof(TimeSpan.TotalHours): value = time.TotalHours; break;
+                    case nameof(TimeSpan.TotalMicroseconds): value = time.TotalMicroseconds; break;
+                    case nameof(TimeSpan.TotalMilliseconds): value = time.TotalMilliseconds; break;
+                    case nameof(TimeSpan.TotalMinutes): value = time.TotalMinutes; break;
+                    case nameof(TimeSpan.TotalNanoseconds): value = time.TotalNanoseconds; break;
+                    case nameof(TimeSpan.TotalSeconds): value = time.TotalSeconds; break;
                     default: return false;
                 }
 
@@ -4920,17 +5012,22 @@ namespace NUglify.JavaScript.Visitors
         {
             if (item is CultureInfo)
             {
-                return [nameof(CultureInfo.Calendar), nameof(CultureInfo.CompareInfo), nameof(CultureInfo.CultureTypes), nameof(CultureInfo.DateTimeFormat), nameof(CultureInfo.DisplayName), nameof(CultureInfo.EnglishName), nameof(CultureInfo.IetfLanguageTag), nameof(CultureInfo.IsNeutralCulture), nameof(CultureInfo.IsReadOnly), nameof(CultureInfo.LCID), nameof(CultureInfo.Name), nameof(CultureInfo.NativeName), nameof(CultureInfo.NumberFormat), nameof(CultureInfo.OptionalCalendars), nameof(CultureInfo.Parent), nameof(CultureInfo.TextInfo), nameof(CultureInfo.ThreeLetterISOLanguageName), nameof(CultureInfo.ThreeLetterWindowsLanguageName), nameof(CultureInfo.TwoLetterISOLanguageName), nameof(CultureInfo.UseUserOverride)];
+                return [nameof(CultureInfo.Calendar), nameof(CultureInfo.CompareInfo), nameof(CultureInfo.CultureTypes), nameof(CultureInfo.DateTimeFormat), nameof(CultureInfo.DisplayName), nameof(CultureInfo.EnglishName), nameof(CultureInfo.IetfLanguageTag), nameof(CultureInfo.IsNeutralCulture), nameof(CultureInfo.IsReadOnly), nameof(CultureInfo.KeyboardLayoutId), nameof(CultureInfo.LCID), nameof(CultureInfo.Name), nameof(CultureInfo.NativeName), nameof(CultureInfo.NumberFormat), nameof(CultureInfo.OptionalCalendars), nameof(CultureInfo.Parent), nameof(CultureInfo.TextInfo), nameof(CultureInfo.ThreeLetterISOLanguageName), nameof(CultureInfo.ThreeLetterWindowsLanguageName), nameof(CultureInfo.TwoLetterISOLanguageName), nameof(CultureInfo.UseUserOverride)];
             }
 
             if (item is CompareInfo)
             {
-                return [nameof(CompareInfo.LCID), nameof(CompareInfo.Name)];
+                return [nameof(CompareInfo.LCID), nameof(CompareInfo.Name), nameof(CompareInfo.Version)];
+            }
+
+            if (item is SortVersion)
+            {
+                return [nameof(SortVersion.FullVersion), nameof(SortVersion.SortId)];
             }
 
             if (item is NumberFormatInfo)
             {
-                return [nameof(NumberFormatInfo.CurrencyDecimalDigits), nameof(NumberFormatInfo.CurrencyDecimalSeparator), nameof(NumberFormatInfo.CurrencyGroupSeparator), nameof(NumberFormatInfo.CurrencyGroupSizes), nameof(NumberFormatInfo.CurrencyNegativePattern), nameof(NumberFormatInfo.CurrencyPositivePattern), nameof(NumberFormatInfo.CurrencySymbol), nameof(NumberFormatInfo.IsReadOnly), nameof(NumberFormatInfo.NaNSymbol), nameof(NumberFormatInfo.NativeDigits), nameof(NumberFormatInfo.NegativeInfinitySymbol), nameof(NumberFormatInfo.NegativeSign), nameof(NumberFormatInfo.NumberDecimalDigits), nameof(NumberFormatInfo.NumberDecimalSeparator), nameof(NumberFormatInfo.NumberGroupSeparator), nameof(NumberFormatInfo.NumberGroupSizes), nameof(NumberFormatInfo.NumberNegativePattern), nameof(NumberFormatInfo.PercentDecimalDigits), nameof(NumberFormatInfo.PercentDecimalSeparator), nameof(NumberFormatInfo.PercentGroupSeparator), nameof(NumberFormatInfo.PercentGroupSizes), nameof(NumberFormatInfo.PercentNegativePattern), nameof(NumberFormatInfo.PercentPositivePattern), nameof(NumberFormatInfo.PercentSymbol), nameof(NumberFormatInfo.PerMilleSymbol), nameof(NumberFormatInfo.PositiveInfinitySymbol), nameof(NumberFormatInfo.PositiveSign)];
+                return [nameof(NumberFormatInfo.CurrencyDecimalDigits), nameof(NumberFormatInfo.CurrencyDecimalSeparator), nameof(NumberFormatInfo.CurrencyGroupSeparator), nameof(NumberFormatInfo.CurrencyGroupSizes), nameof(NumberFormatInfo.CurrencyNegativePattern), nameof(NumberFormatInfo.CurrencyPositivePattern), nameof(NumberFormatInfo.CurrencySymbol), nameof(NumberFormatInfo.DigitSubstitution), nameof(NumberFormatInfo.IsReadOnly), nameof(NumberFormatInfo.NaNSymbol), nameof(NumberFormatInfo.NativeDigits), nameof(NumberFormatInfo.NegativeInfinitySymbol), nameof(NumberFormatInfo.NegativeSign), nameof(NumberFormatInfo.NumberDecimalDigits), nameof(NumberFormatInfo.NumberDecimalSeparator), nameof(NumberFormatInfo.NumberGroupSeparator), nameof(NumberFormatInfo.NumberGroupSizes), nameof(NumberFormatInfo.NumberNegativePattern), nameof(NumberFormatInfo.PercentDecimalDigits), nameof(NumberFormatInfo.PercentDecimalSeparator), nameof(NumberFormatInfo.PercentGroupSeparator), nameof(NumberFormatInfo.PercentGroupSizes), nameof(NumberFormatInfo.PercentNegativePattern), nameof(NumberFormatInfo.PercentPositivePattern), nameof(NumberFormatInfo.PercentSymbol), nameof(NumberFormatInfo.PerMilleSymbol), nameof(NumberFormatInfo.PositiveInfinitySymbol), nameof(NumberFormatInfo.PositiveSign)];
             }
 
             if (item is DateTimeFormatInfo)
@@ -4943,6 +5040,16 @@ namespace NUglify.JavaScript.Visitors
                 return [nameof(TextInfo.ANSICodePage), nameof(TextInfo.CultureName), nameof(TextInfo.EBCDICCodePage), nameof(TextInfo.IsReadOnly), nameof(TextInfo.IsRightToLeft), nameof(TextInfo.LCID), nameof(TextInfo.ListSeparator), nameof(TextInfo.MacCodePage), nameof(TextInfo.OEMCodePage)];
             }
 
+            if (item is GregorianCalendar)
+            {
+                return [nameof(Calendar.AlgorithmType), nameof(GregorianCalendar.CalendarType), nameof(Calendar.Eras), nameof(Calendar.IsReadOnly), nameof(Calendar.MaxSupportedDateTime), nameof(Calendar.MinSupportedDateTime), nameof(Calendar.TwoDigitYearMax)];
+            }
+
+            if (item is HijriCalendar)
+            {
+                return [nameof(Calendar.AlgorithmType), nameof(Calendar.Eras), nameof(HijriCalendar.HijriAdjustment), nameof(Calendar.IsReadOnly), nameof(Calendar.MaxSupportedDateTime), nameof(Calendar.MinSupportedDateTime), nameof(Calendar.TwoDigitYearMax)];
+            }
+
             if (item is Calendar)
             {
                 return [nameof(Calendar.AlgorithmType), nameof(Calendar.Eras), nameof(Calendar.IsReadOnly), nameof(Calendar.MaxSupportedDateTime), nameof(Calendar.MinSupportedDateTime), nameof(Calendar.TwoDigitYearMax)];
@@ -4951,7 +5058,50 @@ namespace NUglify.JavaScript.Visitors
             return null;
         }
 
-        static AstNode CreateNodeFromObject(SourceContext context, object item)
+        static IEnumerable<KeyValuePair<string, object>> GetCultureProperties(object item, string[] propertyNames)
+        {
+            foreach (var propertyName in propertyNames)
+            {
+                if (TryGetCultureProperty(item, propertyName, out var value))
+                {
+                    yield return new KeyValuePair<string, object>(propertyName, value);
+                }
+            }
+        }
+#else
+        static bool TryGetCultureProperty(object item, string propertyName, out object value)
+        {
+            try
+            {
+                var property = item?.GetType().GetProperty(propertyName);
+                if (property != null)
+                {
+                    value = property.GetValue(item, null);
+                    return true;
+                }
+            }
+            catch (AmbiguousMatchException)
+            {
+                // Leave an ambiguous token unresolved.
+            }
+
+            value = null;
+            return false;
+        }
+
+        static IEnumerable<KeyValuePair<string, object>> GetCultureProperties(object item)
+        {
+            foreach (var property in item.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
+            {
+                if (property.GetGetMethod() != null && property.GetIndexParameters().Length == 0)
+                {
+                    yield return new KeyValuePair<string, object>(property.Name, property.GetValue(item, null));
+                }
+            }
+        }
+#endif
+
+        static AstNode CreateNodeFromObject(SourceContext context, object item, List<object> ancestors = null)
         {
             if (item == null)
             {
@@ -4990,48 +5140,64 @@ namespace NUglify.JavaScript.Visitors
                 return new ConstantWrapper(item.ToString(), PrimitiveType.String, context);
             }
 
-            var arrayObject = item as Array;
-
-            if (arrayObject != null)
+            ancestors ??= new List<object>();
+            if (ancestors.Exists(ancestor => ReferenceEquals(ancestor, item)))
             {
-                var arrayLiteral = new ArrayLiteral(context)
+                return new ConstantWrapper(null, PrimitiveType.Null, context);
+            }
+
+            ancestors.Add(item);
+            try
+            {
+                if (item is Array array)
                 {
-                    Elements = new AstNodeList(context)
+                    var arrayLiteral = new ArrayLiteral(context)
+                    {
+                        Elements = new AstNodeList(context)
+                    };
+
+                    foreach (var element in array)
+                    {
+                        arrayLiteral.Elements.Append(CreateNodeFromObject(context, element, ancestors));
+                    }
+
+                    return arrayLiteral;
+                }
+
+#if NET10_0_OR_GREATER
+                var propertyNames = GetCulturePropertyNames(item);
+                if (propertyNames == null)
+                {
+                    return new ConstantWrapper(item.ToString(), PrimitiveType.String, context);
+                }
+
+                var properties = GetCultureProperties(item, propertyNames);
+#else
+                var properties = GetCultureProperties(item);
+#endif
+                var objectLiteral = new ObjectLiteral(context)
+                {
+                    Properties = new AstNodeList(context)
                 };
 
-                foreach (var element in arrayObject)
+                foreach (var property in properties)
                 {
-                    arrayLiteral.Elements.Append(CreateNodeFromObject(context, element));
-                }
-
-                return arrayLiteral;
-            }
-
-            var propertyNames = GetCulturePropertyNames(item);
-
-            if (propertyNames == null)
-            {
-                return new ConstantWrapper(item.ToString(), PrimitiveType.String, context);
-            }
-
-            var objectLiteral = new ObjectLiteral(context)
-            {
-                Properties = new AstNodeList(context)
-            };
-
-            foreach (var propertyName in propertyNames)
-            {
-                if (TryGetCultureProperty(item, propertyName, out object propertyValue) && propertyValue != item)
-                {
-                    objectLiteral.Properties.Append(new ObjectLiteralProperty(context)
+                    if (!ReferenceEquals(property.Value, item))
                     {
-                        Name = new ObjectLiteralField(propertyName, PrimitiveType.String, context),
-                        Value = CreateNodeFromObject(context, propertyValue),
-                    });
+                        objectLiteral.Properties.Append(new ObjectLiteralProperty(context)
+                        {
+                            Name = new ObjectLiteralField(property.Key, PrimitiveType.String, context),
+                            Value = CreateNodeFromObject(context, property.Value, ancestors),
+                        });
+                    }
                 }
-            }
 
-            return objectLiteral;
+                return objectLiteral;
+            }
+            finally
+            {
+                ancestors.RemoveAt(ancestors.Count - 1);
+            }
         }
     }
 }

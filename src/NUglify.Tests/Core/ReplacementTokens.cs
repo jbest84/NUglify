@@ -123,6 +123,7 @@ namespace NUglify.Tests.Core
         [TestCase("TextInfo")]
         [TestCase("Calendar")]
         [TestCase("CompareInfo")]
+        [TestCase("CompareInfo.Version")]
         public void CurrentCultureReplacementCreatesLiteralsForSupportedObjectTypesJS(string propertyPath)
         {
             var previousCulture = CultureInfo.CurrentCulture;
@@ -154,6 +155,14 @@ namespace NUglify.Tests.Core
         [TestCase("CompareInfo.LCID", "1033")]
         [TestCase("CompareInfo.Name", "\"en-US\"")]
         [TestCase("DateTimeFormat.MonthNames.Length", "13")]
+        [TestCase("DateTimeFormat.MonthNames.LongLength", "13")]
+        [TestCase("DateTimeFormat.MonthNames.Rank", "1")]
+        [TestCase("Name.Length", "5")]
+        [TestCase("Calendar.CalendarType", "\"Localized\"")]
+        [TestCase("OptionalCalendars.0.CalendarType", "\"Localized\"")]
+        [TestCase("Calendar.MinSupportedDateTime.Year", "1")]
+        [TestCase("NumberFormat.DigitSubstitution", "\"None\"")]
+        [TestCase("KeyboardLayoutId", "1033")]
         [SetCulture("en-US")]
         public void CurrentCultureReplacementPreservesExistingPropertyPaths(string path, string expectedLiteral)
         {
@@ -286,7 +295,9 @@ namespace NUglify.Tests.Core
                 case "Calendar":
                     return new[] { "AlgorithmType", "Eras", "IsReadOnly", "MaxSupportedDateTime", "MinSupportedDateTime", "TwoDigitYearMax" };
                 case "CompareInfo":
-                    return new[] { "LCID", "Name" };
+                    return new[] { "LCID", "Name", "Version" };
+                case "CompareInfo.Version":
+                    return new[] { "FullVersion", "SortId" };
                 default:
                     throw new ArgumentOutOfRangeException(nameof(propertyPath));
             }
@@ -297,7 +308,7 @@ namespace NUglify.Tests.Core
             foreach (var propertyPath in new[]
             {
                 "CultureTypes", "DisplayName", "EnglishName", "IetfLanguageTag", "IsNeutralCulture", "IsReadOnly", "LCID", "Name", "NativeName", "ThreeLetterISOLanguageName", "ThreeLetterWindowsLanguageName", "TwoLetterISOLanguageName", "UseUserOverride",
-                "CompareInfo.LCID", "CompareInfo.Name",
+                "CompareInfo.LCID", "CompareInfo.Name", "CompareInfo.Version.FullVersion", "CompareInfo.Version.SortId",
                 "NumberFormat.CurrencyDecimalDigits", "NumberFormat.CurrencyDecimalSeparator", "NumberFormat.CurrencyGroupSeparator", "NumberFormat.CurrencyGroupSizes", "NumberFormat.CurrencyNegativePattern", "NumberFormat.CurrencyPositivePattern", "NumberFormat.CurrencySymbol", "NumberFormat.IsReadOnly", "NumberFormat.NaNSymbol", "NumberFormat.NativeDigits", "NumberFormat.NegativeInfinitySymbol", "NumberFormat.NegativeSign", "NumberFormat.NumberDecimalDigits", "NumberFormat.NumberDecimalSeparator", "NumberFormat.NumberGroupSeparator", "NumberFormat.NumberGroupSizes", "NumberFormat.NumberNegativePattern", "NumberFormat.PercentDecimalDigits", "NumberFormat.PercentDecimalSeparator", "NumberFormat.PercentGroupSeparator", "NumberFormat.PercentGroupSizes", "NumberFormat.PercentNegativePattern", "NumberFormat.PercentPositivePattern", "NumberFormat.PercentSymbol", "NumberFormat.PerMilleSymbol", "NumberFormat.PositiveInfinitySymbol", "NumberFormat.PositiveSign",
                 "DateTimeFormat.AbbreviatedDayNames", "DateTimeFormat.AbbreviatedMonthGenitiveNames", "DateTimeFormat.AbbreviatedMonthNames", "DateTimeFormat.AMDesignator", "DateTimeFormat.CalendarWeekRule", "DateTimeFormat.DateSeparator", "DateTimeFormat.DayNames", "DateTimeFormat.FirstDayOfWeek", "DateTimeFormat.FullDateTimePattern", "DateTimeFormat.IsReadOnly", "DateTimeFormat.LongDatePattern", "DateTimeFormat.LongTimePattern", "DateTimeFormat.MonthDayPattern", "DateTimeFormat.MonthGenitiveNames", "DateTimeFormat.MonthNames", "DateTimeFormat.NativeCalendarName", "DateTimeFormat.PMDesignator", "DateTimeFormat.RFC1123Pattern", "DateTimeFormat.ShortDatePattern", "DateTimeFormat.ShortestDayNames", "DateTimeFormat.ShortTimePattern", "DateTimeFormat.SortableDateTimePattern", "DateTimeFormat.TimeSeparator", "DateTimeFormat.UniversalSortableDateTimePattern", "DateTimeFormat.YearMonthPattern",
                 "TextInfo.ANSICodePage", "TextInfo.CultureName", "TextInfo.EBCDICCodePage", "TextInfo.IsReadOnly", "TextInfo.IsRightToLeft", "TextInfo.ListSeparator", "TextInfo.MacCodePage", "TextInfo.OEMCodePage",
