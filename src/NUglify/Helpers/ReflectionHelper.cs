@@ -74,31 +74,6 @@ namespace NUglify
         {
            @this.Length = 0;
         }
-#else
-        public static IEnumerable<FieldInfo> GetDeclaredFields(this TypeInfo type)
-        {
-            return type.DeclaredFields;
-        }
-
-        public static IEnumerable<PropertyInfo> GetDeclaredProperties(this TypeInfo type)
-        {
-            return type.DeclaredProperties;
-        }
-        public static IEnumerable<MethodInfo> GetDeclaredMethods(this TypeInfo type)
-        {
-            return type.DeclaredMethods;
-        }
-
-        public static MethodInfo GetMethod(this Type type, string name, Type[] parameterTypes)
-        {
-            return type.GetRuntimeMethod(name, parameterTypes);
-        }
-
-        public static PropertyInfo GetProperty(this Type type, string name)
-        {
-            return type.GetRuntimeProperty(name);
-        }
-
 #endif
     }
 }

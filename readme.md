@@ -24,6 +24,7 @@ See the [ChangeLog](https://github.com/jbest84/NUglify/blob/master/changelog.md)
   - Super fast and GC friendly parser and minifier, 10x times faster than existing html compressor for .NET
   - Method `Uglify.HtmlToText` that allows to extract the text from an HTML document
 - Compatible with `.NET Framework 4.0`, `.NET Standard 2.0`, and `.NET 10.0`
+- The `.NET 10.0` target is marked AOT-compatible and supports trimming; the legacy targets remain available for older applications. Culture replacement tokens use the standard `CultureInfo`, number/date format, text, and calendar properties without runtime property reflection.
 
 ## Download
 
