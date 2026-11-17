@@ -4390,8 +4390,7 @@ namespace NUglify.JavaScript
                         GetNextToken();
                         if (m_currentToken.Is(JSToken.ArrowFunction))
                         {
-                            ast = ParseArrowFunction(ast);
-                            break;
+                            return ParseArrowFunction(ast);
                         }
 
                         ast = asyncLookup;
@@ -4487,7 +4486,10 @@ namespace NUglify.JavaScript
             {
                 ParsedVersion = ScriptVersion.EcmaScript6;
                 if(ast != null)
-					ast = ParseArrowFunction(ast);
+                {
+                    // An unparenthesized arrow is an assignment expression and cannot take member/call suffixes.
+                    return ParseArrowFunction(ast);
+                }
                 else
 	                ReportError(JSError.SyntaxError);
             }
@@ -6158,6 +6160,8 @@ namespace NUglify.JavaScript
                 }
                 else if (nextToken.IsEither(JSToken.MultipleLineComment, JSToken.SingleLineComment))
                 {
+                    m_foundEndOfLine |= nextToken.EndLineNumber > nextToken.StartLineNumber;
+
                     if (nextToken.HasCode
                         && ((nextToken.Code.Length > 2 && nextToken.Code[2] == '!')
                         || (nextToken.Code.IndexOf("@preserve", StringComparison.OrdinalIgnoreCase) >= 0)
