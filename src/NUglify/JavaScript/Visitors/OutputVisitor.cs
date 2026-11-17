@@ -3565,7 +3565,7 @@ namespace NUglify.JavaScript.Visitors
                 m_segmentStartLine = lineCount;
                 m_segmentStartColumn = lineLength;
 
-                lineLength += WriteToStream(text);
+                WriteToStream(text);
                 m_noLineBreaks = false;
 
                 // if it ends in a newline, we're still on a newline
@@ -3882,9 +3882,8 @@ namespace NUglify.JavaScript.Visitors
         }
 
         // write a text string to the output stream, optionally expanding any single characters
-        // to \uXXXX format if outside the ASCII range. Return the actual number of characters written
-        // after any expansion.
-        int WriteToStream(string text)
+        // to \uXXXX format if outside the ASCII range. Track the output position after expansion.
+        void WriteToStream(string text)
         {
             // if we always want to encode non-ascii characters, then we need
             // to look at each one and see if we need to encode anything!
@@ -3940,7 +3939,22 @@ namespace NUglify.JavaScript.Visitors
             }
 
             outputStream.Write(text);
-            return text.Length;
+
+            var lineStart = 0;
+            for (var lineBreak = text.IndexOfAny(LineFeedCharacters); lineBreak >= 0;
+                lineBreak = text.IndexOfAny(LineFeedCharacters, lineStart))
+            {
+                ++lineCount;
+                // A CRLF pair advances the output by one line.
+                if (text[lineBreak] == '\r' && lineBreak + 1 < text.Length && text[lineBreak + 1] == '\n')
+                {
+                    ++lineBreak;
+                }
+
+                lineStart = lineBreak + 1;
+            }
+
+            lineLength = lineStart == 0 ? lineLength + text.Length : text.Length - lineStart;
         }
 
         // write a single character to the stream, optionally expanding it to a \uXXXX sequence
