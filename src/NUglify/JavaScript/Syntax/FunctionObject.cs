@@ -79,7 +79,8 @@ namespace NUglify.JavaScript.Syntax
             {
                 // if this is a declaration or a method, then it's not an expression. 
                 return FunctionType != FunctionType.Declaration
-                    && FunctionType != FunctionType.Method;
+                    && FunctionType != FunctionType.Method
+                    && FunctionType != FunctionType.StaticBlock;
             }
         }
 
@@ -233,6 +234,7 @@ namespace NUglify.JavaScript.Syntax
         Getter,
         Setter,
         ArrowFunction,
-        Method
+        Method,
+        StaticBlock
     }
 }

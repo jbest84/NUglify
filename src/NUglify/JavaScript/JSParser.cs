@@ -1664,10 +1664,8 @@ namespace NUglify.JavaScript
             }
             else if (m_currentToken.IsNot(JSToken.Semicolon))
             {
-	            var nextToken = PeekToken();
-	            var inToken = nextToken == JSToken.Of ? JSToken.Of : JSToken.In;
                 // not a declaration (var, const, let), so parse an expression with the no-in target
-                initializer = ParseExpression(false, inToken);
+                initializer = ParseExpression(false, JSToken.In);
             }
 
             // either we are at a semicolon or an in/of token
@@ -3365,6 +3363,18 @@ namespace NUglify.JavaScript
             if (staticContext != null)
 	            GetNextToken();
 
+            if (staticContext != null && m_currentToken.Is(JSToken.LeftCurly))
+            {
+                var body = ParseBlock();
+                return new FunctionObject(staticContext.CombineWith(body.Context))
+                {
+                    FunctionType = FunctionType.StaticBlock,
+                    IsStatic = true,
+                    StaticContext = staticContext,
+                    Body = body
+                };
+            }
+
             ArrayLiteral computedName = null;
 
 
@@ -3532,6 +3542,7 @@ namespace NUglify.JavaScript
                 // inToken = JSToken.None which is always true if the first condition is true
                 if (JSScanner.IsProcessableOperator(m_currentToken.Token)
                     && m_currentToken.IsNot(inToken)
+                    && !(inToken == JSToken.In && m_currentToken.Is(JSToken.Of))
                     && (!single || m_currentToken.IsNot(JSToken.Comma)))
                 {
                     if (opsStack == null)
@@ -4605,6 +4616,7 @@ namespace NUglify.JavaScript
 
             LookupExpression lookup = null;
             // A tag can observe the raw spelling of escape sequences through strings.raw.
+            preserveRawText |= m_currentToken.Code[0] != '`';
             var text = preserveRawText ? m_currentToken.Code : m_scanner.StringLiteralValue;
 
             // see if it starts with an identifier

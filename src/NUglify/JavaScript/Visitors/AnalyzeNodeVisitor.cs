@@ -2773,6 +2773,8 @@ namespace NUglify.JavaScript.Visitors
                         var paramDecl = node.ParameterDeclarations[ndx] as ParameterDeclaration;
                         if (paramDecl != null)
                         {
+                            // Evaluating a default can execute code even when the binding is unused.
+                            foundLastReference |= paramDecl.Initializer != null && !paramDecl.Initializer.IsConstant;
                             if (CheckParametersAreReferenced(paramDecl.Binding, removeIfUnreferenced, foundLastReference))
                             {
                                 // if we've already hit a referenced parameter, then we couldn't delete this

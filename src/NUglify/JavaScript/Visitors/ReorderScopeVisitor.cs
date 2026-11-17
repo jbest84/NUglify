@@ -1027,6 +1027,14 @@ namespace NUglify.JavaScript.Visitors
                         deleteParens = true;
                     }
 
+                    // Parentheses end optional-chain short circuiting before a subsequent access or call.
+                    if ((node.Parent is MemberExpression member && member.Root == node
+                            || node.Parent is CallExpression call && call.Function == node)
+                        && ContainsOptionalChain(node.Operand))
+                    {
+                        deleteParens = false;
+                    }
+
                     if (deleteParens)
                     {
                         // delete the parens by replacing the grouping opertor node
@@ -1041,6 +1049,37 @@ namespace NUglify.JavaScript.Visitors
                     node.Operand.Accept(this);
                 }
             }
+        }
+
+        static bool ContainsOptionalChain(AstNode node)
+        {
+            while (node != null)
+            {
+                if (node is MemberExpression member)
+                {
+                    if (member.OptionalChaining)
+                    {
+                        return true;
+                    }
+
+                    node = member.Root;
+                }
+                else if (node is CallExpression call)
+                {
+                    if (call.OptionalChaining)
+                    {
+                        return true;
+                    }
+
+                    node = call.Function;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return false;
         }
 
         public override void Visit(ModuleDeclaration node)
