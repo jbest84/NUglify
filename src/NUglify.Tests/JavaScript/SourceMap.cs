@@ -17,6 +17,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using NUglify.JavaScript;
 using NUglify.Tests.JavaScript.Common;
 using NUnit.Framework;
@@ -45,6 +46,56 @@ namespace NUglify.Tests.JavaScript
         public void SourceMapV3()
         {
             TestHelper.Instance.RunTest("-map:v3", "ScriptSharpMap.js", "MapArgNotSpecified.js");
+        }
+
+        [TestCase("`x\ny`", "AAAA,IAAIA,EAAI;EACN,CACFC,GAAG,CAACD,CAAD")]
+        [TestCase("`x\r\ny`", "AAAA,IAAIA,EAAI;EACN,CACFC,GAAG,CAACD,CAAD")]
+        [TestCase("`x\ry`", "AAAA,IAAIA,EAAI;EACN,CACFC,GAAG,CAACD,CAAD")]
+        [TestCase("`x\u2028y`", "AAAA,IAAIA,EAAI;EACN,CACFC,GAAG,CAACD,CAAD")]
+        [TestCase("`x\u2029y`", "AAAA,IAAIA,EAAI;EACN,CACFC,GAAG,CAACD,CAAD")]
+        [TestCase("`x\n\ny`", "AAAA,IAAIA,EAAI;;EAEN,CACFC,GAAG,CAACD,CAAD")]
+        [TestCase("`x\n${value}y`", "AAAA,IAAIA,EAAI;EACNC,K,GAAQ,CACVC,GAAG,CAACF,CAAD")]
+        [TestCase("`x${value}\ny`", "AAAA,IAAIA,EAAI,IAAIC,K;EACV,CACFC,GAAG,CAACF,CAAD")]
+        public void Bug488_TemplateLiteralSourceMap(string templateLiteral, string expectedMappings)
+        {
+            var source = "var a = " + templateLiteral + ";\nfoo(a);";
+            var json = new StringWriter();
+            UglifyResult result;
+            using (var map = new V3SourceMap(json))
+            {
+                map.StartPackage("o.js", "o.map");
+                result = Uglify.Js(source, new CodeSettings { SymbolsMap = map });
+            }
+
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo("var a=" + templateLiteral + ";foo(a)\n//# sourceMappingURL=o.map\n"));
+            using (var document = JsonDocument.Parse(json.ToString()))
+            {
+                Assert.That(document.RootElement.GetProperty("mappings").GetString(), Is.EqualTo(expectedMappings));
+            }
+        }
+
+        [TestCase("2*b/4", "b/2", "AAAEA,CAAD,CAAG")]
+        [TestCase("foo(2/1)", "foo(2)", "AAAAA,GAAG,CAAC,CAAD")]
+        [TestCase("foo(1/0)", "foo(1/0)", "AAAAA,GAAG,CAAC,CAAC,CAAC,CAAH")]
+        public void Bug489_ConstantFoldingSourceMap(string source, string expectedCode, string expectedMappings)
+        {
+            var json = new StringWriter();
+            UglifyResult result;
+            using (var map = new V3SourceMap(json))
+            {
+                map.StartPackage("o.js", "o.map");
+                var settings = new CodeSettings { SymbolsMap = map };
+                result = Uglify.Js(source, settings);
+                Assert.That(settings.SymbolsMap, Is.SameAs(map));
+            }
+
+            Assert.That(result.HasErrors, Is.False);
+            Assert.That(result.Code, Is.EqualTo(expectedCode + "\n//# sourceMappingURL=o.map\n"));
+            using (var document = JsonDocument.Parse(json.ToString()))
+            {
+                Assert.That(document.RootElement.GetProperty("mappings").GetString(), Is.EqualTo(expectedMappings));
+            }
         }
 
 

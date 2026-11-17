@@ -5,6 +5,8 @@
 - Add support for `for...of` assignment targets using destructuring patterns or member expressions, and class static initialization blocks (#486).
 - Preserve lexical scopes when removing unused labels, unused parameters with side-effecting defaults, parentheses that end optional chains, and raw escape sequences in tagged templates (#486).
 - Fix arrow functions with block bodies being incorrectly called by an IIFE on the next line, including line breaks inside multiline comments (#487).
+- Fix incorrect source-map line and column tracking for multiline template literals (#488).
+- Fix extra source-map segments and incorrect output offsets when comparing constant-folding rewrites (#489).
 
 ## v1.23.7
 - Fix JavaScript minification bugs involving nested object rest destructuring, required initializers in unreachable destructuring declarations, preservation of `yield` and `await` expressions, loose equality with `null`, strict-mode methods named `get` and `set`, and unbound method calls through comma expressions (#482).

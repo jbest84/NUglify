@@ -1947,7 +1947,15 @@ namespace NUglify.JavaScript.Visitors
 
         int NodeLength(AstNode node)
         {
-            var code = OutputVisitor.Apply(node, m_parser.Settings);
+            var settings = m_parser.Settings;
+            if (settings.SymbolsMap != null)
+            {
+                // Measuring a potential rewrite must not add mappings or advance output offsets.
+                settings = settings.Clone();
+                settings.SymbolsMap = null;
+            }
+
+            var code = OutputVisitor.Apply(node, settings);
             return code.IfNotNull(c => c.Length);
         }
 
