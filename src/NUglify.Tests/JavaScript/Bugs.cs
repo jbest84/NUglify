@@ -1512,6 +1512,83 @@ var second;
             AssertMinified("consume((0, o.m));", "consume(o.m)");
         }
 
+        [TestCase("for ([a, b] of rows) use(a, b);", "for([a,b]of rows)use(a,b)")]
+        [TestCase("for ({ id, name } of rows) use(id, name);", "for({id,name}of rows)use(id,name)")]
+        [TestCase("for (o.k of [5]);", "for(o.k of[5]);")]
+        [TestCase("for (o[key] of values) use(o);", "for(o[key]of values)use(o)")]
+        [TestCase("for ([a] in obj) use(a);", "for([a]in obj)use(a)")]
+        [TestCase("for (o.k in obj) use(o);", "for(o.k in obj)use(o)")]
+        [TestCase("for (x of xs) use(x);", "for(x of xs)use(x)")]
+        [TestCase("for ([a = fallback()] of rows) use(a);", "for([a=fallback()]of rows)use(a)")]
+        [TestCase("for (o.k = 0; o.k < 2; o.k++) use(o.k);", "for(o.k=0;o.k<2;o.k++)use(o.k)")]
+        [TestCase("async function f() { for await (o.k of rows) use(o.k); }", "async function f(){for await(o.k of rows)use(o.k)}")]
+        public void Bug486ForOfAssignmentTargets(string source, string expected)
+        {
+            AssertMinified(source, expected);
+            AssertMinifiedReparses(source);
+        }
+
+        [Test]
+        public void Bug486ClassStaticBlocks()
+        {
+            AssertMinified("class A { static x = 1; static { A.y = A.x + 1; } } console.log(A.y);",
+                "class A{static x=1;static{A.y=A.x+1}}console.log(A.y)");
+            AssertMinified("class A { static {} static { var value = 1; this.x = () => value; } static { let value = 2; this.y = () => value; } }",
+                "class A{static{}static{var n=1;this.x=()=>n}static{let n=2;this.y=()=>n}}");
+            AssertMinifiedReparses("class A extends B { static { this.x = super.x; } method() { return this.x; } }");
+            AssertMinified("class A { static { function value() { return 1; } this.x = value(); } }",
+                "class A{static{function n(){return 1}this.x=n()}}");
+            AssertMinified("class A { static { var value = 1; } static { use(typeof value); } }",
+                "class A{static{}static{use(typeof value)}}");
+        }
+
+        [TestCase("let")]
+        [TestCase("const")]
+        public void Bug486UnusedLabelPreservesLexicalScope(string declaration)
+        {
+            AssertMinified("function f(log) { L: { " + declaration + " a = 1; log.push(() => a); } " + declaration + " b = 2; log.push(() => b); return log.map(g => g()); } console.log(f([]));",
+                "function f(n){{" + declaration + " t=1;n.push(()=>t)}" + declaration + " t=2;return n.push(()=>t),n.map(n=>n())}console.log(f([]))");
+        }
+
+        [TestCase("function f(a, b = log.push('default')) { log.push('body'); }", "function f(n,t=log.push(\"default\")){log.push(\"body\")}")]
+        [TestCase("async function f(a, b = log.push('default')) { log.push('body'); }", "async function f(n,t=log.push(\"default\")){log.push(\"body\")}")]
+        [TestCase("const o = { f(a, b = log.push('default')) { log.push('body'); } };", "const o={f(n,t=log.push(\"default\")){log.push(\"body\")}}")]
+        [TestCase("function f(a, b = 1) { log.push('body'); }", "function f(){log.push(\"body\")}")]
+        [TestCase("function f(a, b = log.push('default'), c = 1) { log.push('body'); }", "function f(n,t=log.push(\"default\")){log.push(\"body\")}")]
+        [TestCase("function f(a = o.value) {}", "function f(n=o.value){}")]
+        [TestCase("const f = (a = log.push('default')) => log.push('body');", "const f=(n=log.push(\"default\"))=>log.push(\"body\")")]
+        public void Bug486UnusedParameterDefaults(string source, string expected)
+        {
+            AssertMinified(source, expected);
+        }
+
+        [TestCase("console.log((o?.a).b);", "console.log((o?.a).b)")]
+        [TestCase("console.log((o?.a)[key]);", "console.log((o?.a)[key])")]
+        [TestCase("(o?.a)();", "(o?.a)()")]
+        [TestCase("console.log((o?.a.b).c);", "console.log((o?.a.b).c)")]
+        [TestCase("console.log(((o?.a)).b);", "console.log((o?.a).b)")]
+        [TestCase("console.log((o?.[key]).b);", "console.log((o?.[key]).b)")]
+        [TestCase("console.log((o.a?.()).b);", "console.log((o.a?.()).b)")]
+        [TestCase("(t?.tag)`x`;", "(t?.tag)`x`")]
+        [TestCase("console.log(o?.a.b);", "console.log(o?.a.b)")]
+        public void Bug486OptionalChainParentheses(string source, string expected)
+        {
+            AssertMinified(source, expected);
+            AssertMinifiedReparses(source);
+        }
+
+        [TestCase(@"console.log(tag`a\x41`);", @"console.log(tag`a\x41`)")]
+        [TestCase(@"tag`\01`;", @"tag`\01`")]
+        [TestCase(@"tag`a\x41${value}\u0042`;", @"tag`a\x41${value}\u0042`")]
+        [TestCase(@"obj.tag`a\x41`;", @"obj.tag`a\x41`")]
+        [TestCase(@"(tag)`a\x41`;", @"tag`a\x41`")]
+        [TestCase(@"String.raw`a\x41`;", @"String.raw`a\x41`")]
+        public void Bug486TaggedTemplateRawText(string source, string expected)
+        {
+            AssertMinified(source, expected);
+            AssertMinifiedReparses(source);
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);

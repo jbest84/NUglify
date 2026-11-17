@@ -1952,7 +1952,18 @@ namespace NUglify.JavaScript.Visitors
                 var isNoIn = m_noIn;
                 m_noIn = false;
 
-                if (node.FunctionType == FunctionType.ArrowFunction)
+                if (node.FunctionType == FunctionType.StaticBlock)
+                {
+                    if (settings.SymbolsMap != null)
+                    {
+                        m_functionStack.Push("static");
+                    }
+
+                    Output("static");
+                    MarkSegment(node, null, node.StaticContext);
+                    OutputBlockWithBraces(node.Body);
+                }
+                else if (node.FunctionType == FunctionType.ArrowFunction)
                 {
                     if (node.IsAsync)
 	                    Output("async");

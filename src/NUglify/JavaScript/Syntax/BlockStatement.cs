@@ -186,7 +186,7 @@ namespace NUglify.JavaScript.Syntax
                     else
                     {
                         BlockStatement newBlock = newNode as BlockStatement;
-                        if (newBlock != null)
+                        if (newBlock != null && !newBlock.HasOwnScope)
                         {
                             // the new "statement" is a block. That means we need to insert all
                             // the statements from the new block at the location of the old item.
