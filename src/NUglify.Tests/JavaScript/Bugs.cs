@@ -1589,6 +1589,55 @@ var second;
             AssertMinifiedReparses(source);
         }
 
+        [TestCase("var f", "var f=()=>{console.log(1)};(()=>{console.log(2)})()")]
+        [TestCase("window.foo", "window.foo=()=>{console.log(1)};(()=>{console.log(2)})()")]
+        public void Bug487ArrowBlockFollowedByIife(string target, string expected)
+        {
+            var source = target + " = () => { console.log(1) }\n(() => { console.log(2) })();";
+            AssertMinified(source, expected);
+            AssertMinifiedReparses(source);
+        }
+
+        [TestCase("()")]
+        [TestCase("value")]
+        [TestCase("(value)")]
+        [TestCase("async ()")]
+        [TestCase("async value")]
+        [TestCase("async (value)")]
+        public void Bug487ArrowBlockAutomaticSemicolon(string parameters)
+        {
+            foreach (var target in new[] { "var f", "let f", "const f", "window.foo" })
+            {
+                foreach (var separator in new[] { "\n", "\r\n", "/*\n*/" })
+                {
+                    var assignment = target + " = " + parameters + " => { console.log(1) }";
+                    var iife = "(() => { console.log(2) })();";
+                    var expected = Uglify.Js(assignment + ";" + iife);
+                    Assert.That(expected.HasErrors, Is.False);
+                    AssertMinified(assignment + separator + iife, expected.Code);
+                }
+            }
+        }
+
+        [TestCase("var f = (() => { console.log(1) })\n(() => { console.log(2) })();", "var f=(()=>{console.log(1)})(()=>{console.log(2)})()")]
+        [TestCase("var f = () => g\n(h)();", "var f=()=>g(h)()")]
+        [TestCase("var f = () => ({ m: g })\n.m();", "var f=()=>({m:g}).m()")]
+        [TestCase("var f = (() => { console.log(1) }).call(null);", "var f=(()=>{console.log(1)}).call(null)")]
+        public void Bug487ArrowExpressionContinuations(string source, string expected)
+        {
+            AssertMinified(source, expected);
+            AssertMinifiedReparses(source);
+        }
+
+        [TestCase("var f = () => {}()")]
+        [TestCase("window.foo = () => {}(() => {})()")]
+        [TestCase("var f = async value => {}()")]
+        [TestCase("var f = () => {}/* comment */()")]
+        public void Bug487UnparenthesizedArrowCallOnSameLine(string source)
+        {
+            Assert.That(Uglify.Js(source).HasErrors, Is.True);
+        }
+
         private void AssertMinified(string source, string expected)
         {
             var result = Uglify.Js(source);
