@@ -1308,6 +1308,13 @@ namespace NUglify.JavaScript.Visitors
                 var isNoIn = m_noIn;
                 m_noIn = false;
 
+                // Flattening a block must not turn an ordinary string statement
+                // into a new strict-mode directive at the start of its parent.
+                var protectStrictString = node.PrimitiveType == PrimitiveType.String
+                    && !(node is DirectivePrologue) && node.Parent is BlockStatement block && !block.IsConcise
+                    && node.Value as string == "use strict";
+                if (protectStrictString) Output('(');
+
                 switch (node.PrimitiveType)
                 {
                     case PrimitiveType.Boolean:
@@ -1365,6 +1372,7 @@ namespace NUglify.JavaScript.Visitors
                             Output(ReplaceTokens(node.Context.Code));
                         }
                         else if (node.MayHaveIssues
+                            || (node is DirectivePrologue directive && !directive.UseStrict && (string)node.Value == "use strict")
                             || (settings.AllowEmbeddedAspNetBlocks && node.StringContainsAspNetReplacement))
                         {
                             // we'd rather show the raw string, but make sure it's safe for inlining
@@ -1380,6 +1388,7 @@ namespace NUglify.JavaScript.Visitors
                         break;
                 }
 
+                if (protectStrictString) Output(')');
                 MarkSegment(node, null, node.Context);
                 SetContextOutputPosition(node.Context);
                 m_startOfStatement = false;

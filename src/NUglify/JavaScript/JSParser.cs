@@ -54,6 +54,9 @@ namespace NUglify.JavaScript
         private CodeSettings m_settings;// = null;
 
         private bool m_foundEndOfLine;
+        private bool m_isGeneratorContext;
+        private bool m_isAsyncContext;
+        internal ContextValidationVisitor ContextValidator { get; set; }
         private IList<SourceContext> m_importantComments;
 
         private Dictionary<string, LabelInfo> m_labelInfo;
@@ -314,6 +317,8 @@ namespace NUglify.JavaScript
 
             // start of a new module
             m_newModule = true;
+            m_isGeneratorContext = false;
+            m_isAsyncContext = m_settings.SourceMode == JavaScriptSourceMode.Module;
 
             var timePoints = m_timingPoints = new long[9];
             var timeIndex = timePoints.Length;
@@ -321,6 +326,7 @@ namespace NUglify.JavaScript
             stopWatch.Start();
 
             // get the first token.
+            using var contextValidation = new ContextValidationVisitor(this);
             GetNextToken();
 
             BlockStatement scriptBlock = null;
@@ -428,6 +434,7 @@ namespace NUglify.JavaScript
 
             // resolve everything
             ResolutionVisitor.Apply(scriptBlock, GlobalScope, this);
+            contextValidation.Validate(scriptBlock, GlobalScope);
             timePoints[--timeIndex] = stopWatch.ElapsedTicks;
 
             if (Settings.AmdSupport)
@@ -510,6 +517,7 @@ namespace NUglify.JavaScript
                 returnBlock.Parent = null;
             }
 
+            contextValidation.Report();
             return returnBlock;
         }
 
@@ -561,6 +569,7 @@ namespace NUglify.JavaScript
 
         internal void OnCompilerError(UglifyError se)
         {
+            ContextValidator?.PromoteDiagnostic(se);
             if (CompilerError != null && !m_settings.IgnoreAllErrors)
             {
                 // format the error code
@@ -1679,10 +1688,23 @@ namespace NUglify.JavaScript
                 }
 
                 operatorContext = m_currentToken.Clone();
+                if (initializer is Declaration loopDeclaration)
+                {
+                    if (loopDeclaration.Count != 1
+                        || ((operatorContext.Is(JSToken.Of) || loopDeclaration is LexicalDeclaration)
+                            && loopDeclaration.Any(declaration => declaration.Initializer != null)))
+                    {
+                        operatorContext.HandleError(JSError.SyntaxError, true);
+                    }
+                }
+                else if (!IsAssignmentTarget(initializer, allowPattern: true))
+                {
+                    operatorContext.HandleError(JSError.IllegalAssignment, true);
+                }
                 GetNextToken();
 
                 // parse the collection expression
-                condOrColl = ParseExpression();
+                condOrColl = ParseExpression(single: operatorContext.Is(JSToken.Of));
             }
             else
             {
@@ -2248,8 +2270,7 @@ namespace NUglify.JavaScript
         // ParseThrowStatement
         //
         //  ThrowStatement :
-        //    throw |
-        //    throw Expression
+        //    throw [no LineTerminator here] Expression
         //---------------------------------------------------------------------------------------
         private AstNode ParseThrowStatement()
         {
@@ -2267,12 +2288,16 @@ namespace NUglify.JavaScript
                         throwNode.UpdateWith(throwNode.Operand.Context);
                     }
                 }
+                else
+                {
+                    ReportError(JSError.ExpressionExpected);
+                }
 
                 ExpectSemicolon(throwNode);
             }
             else
             {
-                ReportError(JSError.SemicolonInsertion, throwNode.Context.FlattenToEnd());
+                ReportError(JSError.SyntaxError, throwNode.Context.FlattenToEnd());
             }
 
             return throwNode;
@@ -2504,6 +2529,14 @@ namespace NUglify.JavaScript
                 exportNode.DefaultContext = m_currentToken.Clone();
                 exportNode.Context.UpdateWith(m_currentToken);
                 GetNextToken();
+
+                // Default class declarations end with their bodies, without
+                // requiring the semicolon of an AssignmentExpression export.
+                if (m_currentToken.Is(JSToken.Class))
+                {
+                    exportNode.Append(ParseClassNode(ClassType.Declaration, allowAnonymousName: true));
+                    return exportNode;
+                }
 
                 var expression = ParseExpression(true);
                 if (expression != null)
@@ -2964,6 +2997,23 @@ namespace NUglify.JavaScript
 
         private FunctionObject ParseFunctionPart2(FunctionType functionType, SourceContext context, BindingIdentifier name, ObjectLiteralField literalName, ArrayLiteral computedName, bool isGenerator, bool isAsync)
         {
+            var savedGenerator = m_isGeneratorContext;
+            var savedAsync = m_isAsyncContext;
+            m_isGeneratorContext = isGenerator;
+            m_isAsyncContext = isAsync;
+            try
+            {
+                return ParseFunctionParts(functionType, context, name, literalName, computedName, isGenerator, isAsync);
+            }
+            finally
+            {
+                m_isGeneratorContext = savedGenerator;
+                m_isAsyncContext = savedAsync;
+            }
+        }
+
+        private FunctionObject ParseFunctionParts(FunctionType functionType, SourceContext context, BindingIdentifier name, ObjectLiteralField literalName, ArrayLiteral computedName, bool isGenerator, bool isAsync)
+        {
 	        BlockStatement body = null;
 	        if (m_currentToken.IsNot(JSToken.LeftParenthesis))
 	        {
@@ -3195,7 +3245,7 @@ namespace NUglify.JavaScript
             return formalParameters;
         }
 
-        private ClassNode ParseClassNode(ClassType classType)
+        private ClassNode ParseClassNode(ClassType classType, bool allowAnonymousName = false)
         {
             ClassNode classNode = null;
             var classContext = m_currentToken.Clone();
@@ -3211,7 +3261,7 @@ namespace NUglify.JavaScript
             }
 
             var bindingIdentifier = binding as BindingIdentifier;
-            if (bindingIdentifier == null && classType == ClassType.Declaration)
+            if (bindingIdentifier == null && classType == ClassType.Declaration && !allowAnonymousName)
             {
                 ReportError(JSError.NoIdentifier, binding.IfNotNull(b => b.Context));
             }
@@ -3319,7 +3369,19 @@ namespace NUglify.JavaScript
 	        context.UpdateWith(m_currentToken);
 	        GetNextToken();
 
-	        var value = ParseExpression(true);
+            var savedGenerator = m_isGeneratorContext;
+            var savedAsync = m_isAsyncContext;
+            m_isGeneratorContext = m_isAsyncContext = false;
+            AstNode value;
+            try
+            {
+                value = ParseExpression(true);
+            }
+            finally
+            {
+                m_isGeneratorContext = savedGenerator;
+                m_isAsyncContext = savedAsync;
+            }
 
 	        if (value != null)
 	        {
@@ -3365,7 +3427,19 @@ namespace NUglify.JavaScript
 
             if (staticContext != null && m_currentToken.Is(JSToken.LeftCurly))
             {
-                var body = ParseBlock();
+                var savedGenerator = m_isGeneratorContext;
+                var savedAsync = m_isAsyncContext;
+                m_isGeneratorContext = m_isAsyncContext = false;
+                BlockStatement body;
+                try
+                {
+                    body = ParseBlock();
+                }
+                finally
+                {
+                    m_isGeneratorContext = savedGenerator;
+                    m_isAsyncContext = savedAsync;
+                }
                 return new FunctionObject(staticContext.CombineWith(body.Context))
                 {
                     FunctionType = FunctionType.StaticBlock,
@@ -3535,6 +3609,15 @@ namespace NUglify.JavaScript
             AstNode expr = null;
             for (; ; )
             {
+                // An unparenthesized arrow is an AssignmentExpression. A following
+                // binary operator cannot extend it, including across a newline.
+                var rightmostExpression = termStack == null ? leftHandSide : termStack.Peek();
+                if (rightmostExpression is FunctionObject arrow && arrow.FunctionType == FunctionType.ArrowFunction
+                    && m_currentToken.IsNot(JSToken.Comma))
+                {
+                    break;
+                }
+
                 // if 'binary op' or 'conditional'
                 // if we are looking for a single expression, then also bail when we hit a comma
                 // inToken is a special case because of the for..in syntax. When ParseExpression is called from
@@ -3776,6 +3859,11 @@ namespace NUglify.JavaScript
                     exprCtx = m_currentToken.Clone();
                     GetNextToken();
                     expr = ParseUnaryExpression(out dummy, false);
+                    if ((opToken == JSToken.Increment || opToken == JSToken.Decrement)
+                        && !IsAssignmentTarget(expr))
+                    {
+                        exprCtx.HandleError(JSError.IllegalAssignment, true);
+                    }
                     if (expr != null)
                     {
                         ast = new UnaryExpression(exprCtx.CombineWith(expr.Context))
@@ -3948,6 +4036,10 @@ namespace NUglify.JavaScript
                 {
                     if (m_currentToken.Is(JSToken.Increment))
                     {
+                        if (!IsAssignmentTarget(ast))
+                        {
+                            m_currentToken.HandleError(JSError.IllegalAssignment, true);
+                        }
                         isLeftHandSideExpr = false;
                         exprCtx = ast.Context.Clone();
                         exprCtx.UpdateWith(m_currentToken);
@@ -3962,6 +4054,10 @@ namespace NUglify.JavaScript
                     }
                     else if (m_currentToken.Is(JSToken.Decrement))
                     {
+                        if (!IsAssignmentTarget(ast))
+                        {
+                            m_currentToken.HandleError(JSError.IllegalAssignment, true);
+                        }
                         isLeftHandSideExpr = false;
                         exprCtx = ast.Context.Clone();
                         exprCtx.UpdateWith(m_currentToken);
@@ -4422,7 +4518,7 @@ namespace NUglify.JavaScript
 
                 case JSToken.Await:
                     {
-                        if (ParsedVersion == ScriptVersion.EcmaScript6 || m_settings.ScriptVersion == ScriptVersion.EcmaScript6)
+                        if (m_isAsyncContext)
                         {
                             ast = ParseAwaitExpression();
                         }
@@ -4439,19 +4535,13 @@ namespace NUglify.JavaScript
                     break;
                 case JSToken.Yield:
                     {
-                        // TODO: not sure if this is the right place to hook for the ES6 YieldExpression semantics!
-                        if (ParsedVersion == ScriptVersion.EcmaScript6 || m_settings.ScriptVersion == ScriptVersion.EcmaScript6)
+                        if (m_isGeneratorContext)
                         {
-                            // we already KNOW we're ES6 code, so just parse this as a yield expression.
-                            // in fact, we SHOULD already know, since yield should only be used within a generator
-                            // function, which for ES6 code should have the "*" generator indicator, which when
-                            // parsed should have already set the ES6 flag.
                             ast = ParseYieldExpression();
                         }
                         else
                         {
-                            // we need to protect against non-ES6 code using "yield" as a variable name versus the
-                            // Mozilla yield syntax. We'll do that further upstream.
+                            // Outside a generator, sloppy code may use yield as an identifier.
                             ast = new LookupExpression(m_currentToken.Clone())
                                 {
                                     Name = "yield"
@@ -4619,6 +4709,10 @@ namespace NUglify.JavaScript
             LookupExpression lookup = null;
             // A tag can observe the raw spelling of escape sequences through strings.raw.
             preserveRawText |= m_currentToken.Code[0] != '`';
+            if (!preserveRawText && m_scanner.TemplateLiteralHasInvalidEscape)
+            {
+                ReportError(JSError.BadHexEscapeSequence);
+            }
             var text = preserveRawText ? m_currentToken.Code : m_scanner.StringLiteralValue;
 
             // see if it starts with an identifier
@@ -4663,6 +4757,10 @@ namespace NUglify.JavaScript
                         m_scanner.UpdateToken(UpdateHint.TemplateLiteral);
                         if (m_currentToken.Is(JSToken.TemplateLiteral))
                         {
+                            if (!preserveRawText && m_scanner.TemplateLiteralHasInvalidEscape)
+                            {
+                                ReportError(JSError.BadHexEscapeSequence);
+                            }
                             text = preserveRawText ? m_currentToken.Code : m_scanner.StringLiteralValue;
                             var templateExpression = new TemplateLiteralExpression(expression.Context.Clone())
                                 {
@@ -4703,15 +4801,21 @@ namespace NUglify.JavaScript
                 GetNextToken();
             }
 
-            // must be followed by an expression
-            var expression = ParseExpression(true);
-            if (expression == null)
+            // A non-delegating yield may omit its operand before a delimiter or
+            // a line terminator, including the end of a template substitution.
+            AstNode expression = null;
+            if (isDelegator || (!m_foundEndOfLine && !m_currentToken.IsOne(JSToken.RightCurly, JSToken.RightParenthesis,
+                JSToken.RightBracket, JSToken.Semicolon, JSToken.Comma, JSToken.Colon, JSToken.EndOfFile)))
+            {
+                expression = ParseExpression(true);
+            }
+            if (expression == null && isDelegator)
             {
                 // we only call this method if we KNOW we are ES6, so if there is no expression,
                 // then throw an error.
                 ReportError(JSError.ExpressionExpected);
             }
-            else
+            else if (expression != null)
             {
                 context.UpdateWith(expression.Context);
             }
@@ -4749,6 +4853,10 @@ namespace NUglify.JavaScript
         private FunctionObject ParseArrowFunction(AstNode parameters)
         {
             // we are on the arrow-function operator now
+            if (m_foundEndOfLine)
+            {
+                ReportError(JSError.SyntaxError);
+            }
             var arrowContext = m_currentToken.Clone();
             GetNextToken();
             ParsedVersion = ScriptVersion.EcmaScript6;
@@ -4760,15 +4868,36 @@ namespace NUglify.JavaScript
                     IsAsync = parameters.Parent is LookupExpression lookupExpression && lookupExpression.Name == JSKeyword.CanBeIdentifier(JSToken.Async)
             };
             functionObject.UpdateWith(arrowContext);
-            if (m_currentToken.Is(JSToken.LeftCurly))
+            var savedGenerator = m_isGeneratorContext;
+            var savedAsync = m_isAsyncContext;
+            m_isGeneratorContext = false;
+            m_isAsyncContext = functionObject.IsAsync;
+            try
             {
-                functionObject.Body = ParseBlock();
+                if (m_currentToken.Is(JSToken.LeftCurly))
+                {
+                    functionObject.Body = ParseBlock();
+                    for (var index = 0; index < functionObject.Body.Count; index++)
+                    {
+                        if (functionObject.Body[index] is ImportantComment) continue;
+                        if (!(functionObject.Body[index] is ConstantWrapper literal) || literal.PrimitiveType != PrimitiveType.String) break;
+                        functionObject.Body[index] = new DirectivePrologue((string)literal.Value, literal.Context)
+                        {
+                            MayHaveIssues = literal.MayHaveIssues
+                        };
+                    }
+                }
+                else
+                {
+                    // parse an assignment expression as a concise block
+                    functionObject.Body = BlockStatement.ForceToBlock(ParseExpression(true));
+                    functionObject.Body.IsConcise = true;
+                }
             }
-            else
+            finally
             {
-                // parse an assignment expression as a concise block
-                functionObject.Body = BlockStatement.ForceToBlock(ParseExpression(true));
-                functionObject.Body.IsConcise = true;
+                m_isGeneratorContext = savedGenerator;
+                m_isAsyncContext = savedAsync;
             }
 
             functionObject.Body.IfNotNull(b => functionObject.UpdateWith(b.Context));
@@ -5432,6 +5561,10 @@ namespace NUglify.JavaScript
                             ParseMemberExpression_AccessField(ref expression, true);
                         break;
                     case JSToken.TemplateLiteral:
+                        if (ContainsOptionalChain(expression))
+                        {
+                            ReportError(JSError.SyntaxError);
+                        }
                         expression = CreateTaggedTemplateCall(expression, ParseTemplateLiteral(preserveRawText: true));
                         break;
                     default:
@@ -5489,6 +5622,10 @@ namespace NUglify.JavaScript
                     Name = property.Name,
                     NameContext = nameContext
                 };
+                if (ContainsOptionalChain(member))
+                {
+                    nameContext.HandleError(JSError.SyntaxError, true);
+                }
                 expression = CreateTaggedTemplateCall(member, literal);
                 return;
             }
@@ -5749,6 +5886,22 @@ namespace NUglify.JavaScript
         {
             Debug.Assert(operatorContext != null);
 
+            if (operand1 != null && JSScanner.IsAssignmentOperator(operatorContext.Token)
+                && !IsAssignmentTarget(operand1, allowPattern: operatorContext.Is(JSToken.Assign)))
+            {
+                operatorContext.HandleError(JSError.IllegalAssignment, true);
+            }
+
+            var leftBinary = operand1 as BinaryExpression;
+            var rightBinary = operand2 as BinaryExpression;
+            if ((operatorContext.Is(JSToken.NullishCoalesce)
+                    && (IsLogicalOperator(leftBinary) || IsLogicalOperator(rightBinary)))
+                || (operatorContext.IsOne(JSToken.LogicalAnd, JSToken.LogicalOr)
+                    && (leftBinary?.OperatorToken == JSToken.NullishCoalesce || rightBinary?.OperatorToken == JSToken.NullishCoalesce)))
+            {
+                operatorContext.HandleError(JSError.SyntaxError, true);
+            }
+
             // create a context, but protect against one or the other operand being null (syntax error during parsing)
             var context = (operand1.IfNotNull(operand => operand.Context) ?? operatorContext)
                 .CombineWith(operand2.IfNotNull(operand => operand.Context));
@@ -5816,6 +5969,63 @@ namespace NUglify.JavaScript
                     // shouldn't get here!
                     Debug.Assert(false);
                     return null;
+            }
+        }
+
+        private static bool IsLogicalOperator(BinaryExpression node)
+            => node != null && (node.OperatorToken == JSToken.LogicalAnd || node.OperatorToken == JSToken.LogicalOr);
+
+        // Follow only the member/call chain. Parentheses end an optional chain,
+        // and optional expressions inside arguments or indices are independent.
+        private static bool ContainsOptionalChain(AstNode node)
+        {
+            switch (node)
+            {
+                case MemberExpression member:
+                    return member.OptionalChaining || ContainsOptionalChain(member.Root);
+                case CallExpression call:
+                    return call.OptionalChaining || ContainsOptionalChain(call.Function);
+                default:
+                    return false;
+            }
+        }
+
+        private static bool IsAssignmentTarget(AstNode node, bool allowPattern = false)
+        {
+            switch (node)
+            {
+                case LookupExpression _:
+                case BindingIdentifier _:
+                    return true;
+                case GroupingOperator grouping:
+                    return IsAssignmentTarget(grouping.Operand);
+                case MemberExpression member:
+                    return !ContainsOptionalChain(member)
+                        && !(member.Name == "target" && member.Root is LookupExpression keyword && keyword.Name == "new");
+                case CallExpression call:
+                    return call.InBrackets && !call.IsConstructor && !ContainsOptionalChain(call);
+                case ArrayLiteral array when allowPattern:
+                    return array.Elements.All(element => element is ConstantWrapper hole && hole.Value == Missing.Value
+                        || IsAssignmentElement(element));
+                case ObjectLiteral obj when allowPattern:
+                    return obj.Properties.All(property => property is ObjectLiteralProperty field && IsAssignmentElement(field.Value));
+                default:
+                    return false;
+            }
+        }
+
+        private static bool IsAssignmentElement(AstNode node)
+        {
+            switch (node)
+            {
+                case InitializerNode initializer:
+                    return IsAssignmentTarget(initializer.Binding, allowPattern: true);
+                case BinaryExpression binary when binary.OperatorToken == JSToken.Assign:
+                    return IsAssignmentTarget(binary.Operand1, allowPattern: true);
+                case UnaryExpression rest when rest.OperatorToken == JSToken.RestSpread:
+                    return IsAssignmentTarget(rest.Operand, allowPattern: true);
+                default:
+                    return IsAssignmentTarget(node, allowPattern: true);
             }
         }
 

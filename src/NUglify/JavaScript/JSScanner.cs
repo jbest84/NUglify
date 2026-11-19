@@ -97,6 +97,8 @@ namespace NUglify.JavaScript
         /// </summary>
         public bool LiteralHasIssues { get; private set; }
 
+        internal bool TemplateLiteralHasInvalidEscape { get; private set; }
+
         /// <summary>
         /// Gets the current decoded string literal value
         /// </summary>
@@ -319,8 +321,20 @@ namespace NUglify.JavaScript
 
                 case '$':
                 case '_':
-                case '#':
                     token = ScanIdentifier(true);
+                    break;
+
+                case '#':
+                    if (currentPosition == 0 && GetChar(currentPosition + 1) == '!')
+                    {
+                        currentPosition += 2;
+                        SkipSingleLineComment();
+                        token = JSToken.SingleLineComment;
+                    }
+                    else
+                    {
+                        token = ScanIdentifier(true);
+                    }
                     break;
 
                 case '%':
@@ -2729,27 +2743,31 @@ namespace NUglify.JavaScript
             var isValidHex = true;
 
             // how many digits we parse depends on the type. x = 2 digits, u = 4 digits.
-            // UNLESS this is a type 'u' followed by a left brace. Then it's between 1 and 6.
+            // Braced code points allow any number of hex digits, including leading
+            // zeroes, provided the resulting value is at most 0x10ffff.
             int digits = hexType == 'x' ? 2 : 4;
-            if (hexType == 'u' && GetChar(currentPosition) == '{')
+            var braced = hexType == 'u' && GetChar(currentPosition) == '{';
+            if (braced)
             {
                 ++currentPosition;
-                digits = 6;
             }
+            var digitStart = currentPosition;
 
             accumulator = 0;
             var ch = GetChar(currentPosition);
-            while (currentPosition - startOfDigits < digits && IsHexDigit(ch))
+            while ((braced || currentPosition - digitStart < digits) && IsHexDigit(ch))
             {
-                if (IsDigit(ch))
+                // Keep consuming an out-of-range value without overflowing the
+                // accumulator, so even long malformed escapes remain deterministic.
+                if (accumulator <= 0x10ffff && IsDigit(ch))
                 {
                     accumulator = accumulator << 4 | (ch - '0');
                 }
-                else if ('A' <= ch && ch <= 'F')
+                else if (accumulator <= 0x10ffff && 'A' <= ch && ch <= 'F')
                 {
                     accumulator = accumulator << 4 | (ch - 'A' + 10);
                 }
-                else if ('a' <= ch && ch <= 'f')
+                else if (accumulator <= 0x10ffff && 'a' <= ch && ch <= 'f')
                 {
                     accumulator = accumulator << 4 | (ch - 'a' + 10);
                 }
@@ -2757,17 +2775,15 @@ namespace NUglify.JavaScript
                 ch = GetChar(++currentPosition);
             }
 
-            // if we didn't find any digits at all, or
-            // if we didn't find the exact number of digits we were looking for,
-            // then it's an error unless we were looking for 6 and the current character is
-            // a closing brace (in which case we skip the brace).
-            var digitsFound = currentPosition - startOfDigits;
-            if (digitsFound == 0 || (digits != 6 && digitsFound != digits) || (digits == 6 && ch != '}'))
+            // Fixed-width escapes need the exact digit count. Braced escapes need
+            // at least one digit, a closing brace, and a value in the Unicode range.
+            var digitsFound = currentPosition - digitStart;
+            if (digitsFound == 0 || accumulator > 0x10ffff || (!braced && digitsFound != digits) || (braced && ch != '}'))
             {
                 isValidHex = false;
                 currentPosition = startOfDigits;
             }
-            else if (digits == 6 && ch == '}')
+            else if (braced)
             {
                 ++currentPosition;
             }
@@ -2778,6 +2794,7 @@ namespace NUglify.JavaScript
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
         JSToken ScanTemplateLiteral(char ch)
         {
+            TemplateLiteralHasInvalidEscape = false;
             // save the start of the current run, INCLUDING the delimiter
             StringBuilder decodedLiteral = null;
             try
@@ -2879,7 +2896,21 @@ namespace NUglify.JavaScript
 
                             case '0':
                                 // null character
+                                TemplateLiteralHasInvalidEscape |= IsDigit(GetChar(currentPosition + 1));
                                 decodedLiteral.Append('\0');
+                                break;
+
+                            case '1':
+                            case '2':
+                            case '3':
+                            case '4':
+                            case '5':
+                            case '6':
+                            case '7':
+                            case '8':
+                            case '9':
+                                TemplateLiteralHasInvalidEscape = true;
+                                decodedLiteral.Append(ch);
                                 break;
 
                             case '\r':
@@ -2906,18 +2937,21 @@ namespace NUglify.JavaScript
                             case 'u':
                                 // unicode escape. four hex digits unless enclosed in curly-braces, in which
                                 // case it can be any number of hex digits.
-                                string unescaped;
                                 ++currentPosition;
-                                if (ScanHexEscape(ch, out unescaped))
+                                int codePoint;
+                                if (ScanHexSequence(currentPosition, ch, out codePoint) && codePoint <= 0x10ffff)
                                 {
-                                    decodedLiteral.Append(unescaped);
+                                    // UTF-16 escapes can contain lone surrogates, too.
+                                    decodedLiteral.Append(codePoint <= 0xffff ? new string((char)codePoint, 1) : char.ConvertFromUtf32(codePoint));
                                 }
                                 else
                                 {
                                     // wasn't valid -- keep the original and flag this as having issues
                                     decodedLiteral.Append(sourceCode.Substring(currentPosition - 2, 2));
                                     LiteralHasIssues = true;
-                                    HandleError(JSError.BadHexEscapeSequence);
+                                    // Tagged templates permit invalid escapes in their raw text.
+                                    // The parser reports them only when the template is untagged.
+                                    TemplateLiteralHasInvalidEscape = true;
                                 }
                                 --currentPosition;
                                 break;

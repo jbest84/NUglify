@@ -1037,7 +1037,7 @@ namespace NUglify.JavaScript.Visitors
                             // if the for-in's variable field is not a declaration, we should check to see
                             // if there is a single named reference, and whether the previous var's last declaration
                             // is for the same var. If so, we can move that declaration into the for-in.
-                            if (!(forInNode.Variable is Declaration))
+                            if (!(forInNode.Variable is Declaration) && BindingTransform.CanBeBinding(forInNode.Variable))
                             {
                                 // now see if the LAST vardecl in the previous var statement is the 
                                 // same field(s) as the variable, and there was either no initializer
@@ -2484,32 +2484,12 @@ namespace NUglify.JavaScript.Visitors
         {
             if (node != null)
             {
-                // if this for-statement has it's own lexical scope, then it's an error
-                // if the any of the field names declared in this scope is also defined inside the body.
+                // Loop-head lexical names may be shadowed in a nested body block,
+                // but cannot collide with var declarations hoisted from the body.
                 if (node.BlockScope != null)
                 {
                     foreach (var field in node.BlockScope.LexicallyDeclaredNames)
                     {
-                        // if the block has a lexical scope, check it for conflicts
-                        if (node.Body != null && node.Body.HasOwnScope)
-                        {
-                            var lexDecl = node.Body.EnclosingScope.LexicallyDeclaredName(field.Name);
-                            if (lexDecl != null)
-                            {
-                                // report the error (lex/const/funcdecl collision)
-                                lexDecl.Context.HandleError(JSError.DuplicateLexicalDeclaration, true);
-
-                                // link the inner one to the outer one so any renaming stays in sync.
-                                if (lexDecl.VariableField != null)
-                                {
-                                    lexDecl.VariableField.OuterField = field.VariableField;
-                                    if (field.VariableField != null && !lexDecl.VariableField.CanCrunch)
-                                    {
-                                        field.VariableField.CanCrunch = false;
-                                    }
-                                }
-                            }
-                        }
 
                         // check to make sure there are no var-decl'd names with the same name. Those will
                         // get carried up to this scope so we don't need to check the block scope (if any)
@@ -2563,32 +2543,12 @@ namespace NUglify.JavaScript.Visitors
         {
             if (node != null)
             {
-                // if this forIn-statement has it's own lexical scope, then it's an error
-                // if the any of the field names declared in this scope is also defined inside the body.
+                // Loop-head lexical names may be shadowed in a nested body block,
+                // but cannot collide with var declarations hoisted from the body.
                 if (node.BlockScope != null)
                 {
                     foreach (var field in node.BlockScope.LexicallyDeclaredNames)
                     {
-                        // if the block has a lexical scope, check it for conflicts
-                        if (node.Body != null && node.Body.HasOwnScope)
-                        {
-                            var lexDecl = node.Body.EnclosingScope.LexicallyDeclaredName(field.Name);
-                            if (lexDecl != null)
-                            {
-                                // report the error (lex/const/funcdecl collision)
-                                lexDecl.Context.HandleError(JSError.DuplicateLexicalDeclaration, true);
-
-                                // link the inner one to the outer one so any renaming stays in sync.
-                                if (lexDecl.VariableField != null)
-                                {
-                                    lexDecl.VariableField.OuterField = field.VariableField;
-                                    if (field.VariableField != null && !lexDecl.VariableField.CanCrunch)
-                                    {
-                                        field.VariableField.CanCrunch = false;
-                                    }
-                                }
-                            }
-                        }
 
                         // check to make sure there are no var-decl'd names with the same name. Those will
                         // get carried up to this scope so we don't need to check the block scope (if any)
@@ -4074,7 +4034,7 @@ namespace NUglify.JavaScript.Visitors
                             lexDecl.Context.HandleError(JSError.DuplicateLexicalDeclaration, lexDecl is LexicalDeclaration);
 
                             // link the inner one to the outer one so any renaming stays in sync.
-                            if (lexDecl.VariableField != null)
+                            if (lexDecl.VariableField != null && lexDecl.VariableField != catchDecl.VariableField)
                             {
                                 lexDecl.VariableField.OuterField = catchDecl.VariableField;
                                 if (catchDecl.VariableField != null && !lexDecl.VariableField.CanCrunch)

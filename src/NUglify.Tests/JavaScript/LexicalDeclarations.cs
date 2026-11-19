@@ -79,7 +79,8 @@ namespace NUglify.Tests.JavaScript
         [Test]
         public void LexDuplicate()
         {
-            TestHelper.Instance.RunErrorTest("-rename:all", JSError.DuplicateLexicalDeclaration, JSError.DuplicateLexicalDeclaration);
+            // The loop body's const may shadow its loop-head let in a separate block.
+            TestHelper.Instance.RunErrorTest("-rename:all", JSError.DuplicateLexicalDeclaration);
         }
 
         [Test]

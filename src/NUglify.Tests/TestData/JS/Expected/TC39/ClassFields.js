@@ -1,1 +1,1 @@
-﻿function x(){let n=1;class t{static id=1;id=0;["computed"+n]=n;constructor(n,t,i){this.id=n;this.move(t,i)}async*["computed2"+n](t,i){this.x=t;this.y=i;yield 0}*[Symbol.iterator](){yield 1;yield 2;yield 3}}}
+﻿function x(){let n=1;class t{static id=1;id=0;["computed"+n]=n;constructor(n,t,i){this.id=n;this.move(t,i)}async*["computed2"+n](n,t){this.x=n;this.y=t;yield 0}*[Symbol.iterator](){yield 1;yield 2;yield 3}}}

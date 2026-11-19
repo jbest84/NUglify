@@ -74,15 +74,14 @@ namespace NUglify.Tests.JavaScript
         [Test]
         public void NonES6Yield()
         {
-            // no errors
-            TestHelper.Instance.RunErrorTest();
+            // Sloppy identifiers remain valid, but the obsolete generator without '*' is rejected.
+            TestHelper.Instance.RunErrorTest(JSError.SyntaxError);
         }
 
         [Test]
         public void NonES6Yield_norename()
         {
-            // no errors
-            TestHelper.Instance.RunErrorTest("-rename:none");
+            TestHelper.Instance.RunErrorTest("-rename:none", JSError.SyntaxError);
         }
 
         [Test]

@@ -97,6 +97,22 @@ namespace NUglify.Tests.JavaScript
             TestHelper.Instance.RunErrorTest(JSError.ExportNotAtModuleLevel);
         }
 
+        [TestCase("export default ;", false)]
+        [TestCase("export default ;", true)]
+        [TestCase("export default var x = null;", false)]
+        [TestCase("export default var x = null;", true)]
+        [TestCase("export default var x = null; export default var x = null;", false)]
+        [TestCase("export default var x = null; export default var x = null;", true)]
+        public void MalformedDefaultExportsReportErrors(string source, bool minify)
+        {
+            var result = Uglify.Js(source, new CodeSettings
+            {
+                SourceMode = JavaScriptSourceMode.Module,
+                MinifyCode = minify
+            });
+            Assert.That(result.HasErrors, Is.True, "Malformed exports must report syntax errors without triggering a Debug assertion.");
+        }
+
         [Test]
         public void ImportAssign()
         {

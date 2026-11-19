@@ -26,3 +26,7 @@
 *.jpeg    binary
 *.gif     binary
 *.ico     binary
+
+# Preserve upstream parser fixtures exactly, including newline-sensitive source.
+src/NUglify.Tests/TestData/JS/Conformance/Test262/** -text whitespace=-blank-at-eol
+src/NUglify.Tests/TestData/JS/Conformance/Boundary/** -text whitespace=-blank-at-eol
