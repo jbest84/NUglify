@@ -205,8 +205,18 @@ body
         [Test]
         public void Bug384()
         {
-            var uglifyResult = Uglify.Css("grid-template-rows: 0fr 0px 0% 0em;");
-            Assert.That(uglifyResult.Code, Is.EqualTo("grid-template-rows: 0fr 0 0% 0;"));
+            var uglifyResult = Uglify.Css("grid-template-rows: 0fr 0px 0% 0em;",
+                new CssSettings { CssType = CssType.DeclarationList });
+            Assert.That(uglifyResult.HasErrors, Is.False);
+            Assert.That(uglifyResult.Code, Is.EqualTo("grid-template-rows:0fr 0 0% 0"));
+        }
+
+        [Test]
+        public void Bug384_FullStyleSheet()
+        {
+            var uglifyResult = Uglify.Css(".x{grid-template-rows: 0fr 0px 0% 0em;}");
+            Assert.That(uglifyResult.HasErrors, Is.False);
+            Assert.That(uglifyResult.Code, Is.EqualTo(".x{grid-template-rows:0fr 0 0% 0}"));
         }
         
         [Test]

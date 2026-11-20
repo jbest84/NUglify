@@ -1,5 +1,5 @@
 ﻿body
 {
-    /* don't actually have exponent syntax in CSS */
+    /* CSS numeric exponents are part of the number before the dimension unit. */
     padding: 2px 1.5e+2cm;
 }

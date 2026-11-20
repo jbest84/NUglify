@@ -35,11 +35,11 @@ jobs:
       - name: Test
         run: dotnet test src\NUglify.Tests\NUglify.Tests.csproj -c Release --no-build -p:UseSharedCompilation=false
 
-      - name: Upload generated JavaScript failures
+      - name: Upload generated conformance failures
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: javascript-conformance-failures
+          name: conformance-failures
           path: '**/TestResults/Conformance/*.txt'
           if-no-files-found: ignore
 
