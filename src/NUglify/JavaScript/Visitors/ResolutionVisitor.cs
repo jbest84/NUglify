@@ -420,6 +420,12 @@ namespace NUglify.JavaScript.Visitors
 
                 // link them so they all keep the same name going forward
                 // (since they are named the same in the sources)
+                for (var outer = ghostField; outer != null; outer = outer.OuterField)
+                {
+                    // A var redeclaration of a simple catch binding can already
+                    // resolve to that binding. Linking it again would form a cycle.
+                    if (outer == catchBinding.VariableField) return;
+                }
                 catchBinding.VariableField.OuterField = ghostField;
 
                 // TODO: this really should be a LIST of ghosted fields, since multiple 
@@ -748,6 +754,7 @@ namespace NUglify.JavaScript.Visitors
                         Owner = node,
                         IsInWithScope = m_withDepth > 0,
                         UseStrict = true, // class bodies are always strict
+                        HasSuperBinding = true,
                         ScopeName = bindingIdentifier == null ? null : bindingIdentifier.Name.IfNullOrWhiteSpace(null)
                     };
                 if (node.Binding != null)
@@ -1034,8 +1041,9 @@ namespace NUglify.JavaScript.Visitors
                         }
                     }
 
-                    // recurse the assignment expression - there should only be a single child
-                    Debug.Assert(node.Count == 1);
+                    // A valid default export has one child. Error recovery can leave
+                    // it empty when the assignment expression is missing or invalid.
+                    Debug.Assert(node.Count <= 1);
                     foreach (var child in node.Children)
                     {
                         child.Accept(this);
@@ -1073,7 +1081,7 @@ namespace NUglify.JavaScript.Visitors
                     // export function ...
                     // export class ...
                     // TODO: add the references or definitions to the export list for the module
-                    Debug.Assert(node.Count > 0);
+                    // An empty export clause is valid module syntax.
                     foreach (var child in node.Children)
                     {
                         child.Accept(this);
@@ -1190,6 +1198,9 @@ namespace NUglify.JavaScript.Visitors
             // TODO: 205
             if (node != null)
             {
+                // Computed method names are evaluated outside the method's
+                // parameter/body environment.
+                node.ComputedName?.Accept(this);
                 // it's a declaration; put the index to -1.
                 node.Index = -1;
 
@@ -1222,7 +1233,8 @@ namespace NUglify.JavaScript.Visitors
                 node.EnclosingScope = new FunctionScope(parentScope, node.FunctionType != FunctionType.Declaration, m_settings, node)
                     {
                         IsInWithScope = m_withDepth > 0,
-                        HasSuperBinding = isClassMethod,
+                        HasSuperBinding = isClassMethod || node.FunctionType == FunctionType.Method
+                            || node.FunctionType == FunctionType.Getter || node.FunctionType == FunctionType.Setter,
                         ScopeName = node.Binding == null ? null : node.Binding.Name.IfNullOrWhiteSpace(null)
                     };
                 m_lexicalStack.Push(node.EnclosingScope);
@@ -1242,7 +1254,6 @@ namespace NUglify.JavaScript.Visitors
                     // so that we can hit the lookups in their INTIALIZERS
                     node.ParameterDeclarations?.Accept(this);
 
-                    node.ComputedName?.Accept(this);
                 }
                 finally
                 {
@@ -1412,6 +1423,13 @@ namespace NUglify.JavaScript.Visitors
             if (node != null)
             {
                 node.Index = NextOrderIndex;
+
+                // The keyword in new.target is a meta-property, not a variable lookup.
+                if (node.Name == "new" && node.Parent is MemberExpression member
+                    && member.Root == node && member.Name == "target" && !member.OptionalChaining)
+                {
+                    return;
+                }
 
                 // add the lookup node to the current lexical scope, because
                 // that's the starting point for this node's lookup resolution.

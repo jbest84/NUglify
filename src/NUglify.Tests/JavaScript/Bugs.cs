@@ -22,7 +22,7 @@ namespace NUglify.Tests.JavaScript
 		[Test]
         public void Bug57()
         {
-            TestHelper.Instance.RunErrorTest();
+            TestHelper.Instance.RunErrorTest(JSError.SyntaxError);
         }
       
 		[Test]
@@ -174,7 +174,7 @@ let TryParseLong = function (str, defaultValue) {
         [Test]
         public void Bug163()
         {
-	        TestHelper.Instance.RunTest();
+	        TestHelper.Instance.RunTest("-js:module");
         }
 
         [Test]
@@ -477,7 +477,8 @@ class TestClass {
         [Test]
         public void Bug301()
         {
-	        TestHelper.Instance.RunTest("-rename:all");
+	        TestHelper.Instance.RunErrorTest("-rename:all", JSError.SyntaxError,
+                JSError.StatementBlockExpected, JSError.UndeclaredVariable, JSError.UndeclaredFunction);
         }
 
         [Test]

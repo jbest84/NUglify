@@ -25,7 +25,7 @@ namespace NUglify.JavaScript.Syntax
         {
             // this is a "use strict" directive if the source context is EXACTLY "use strict"
             // don't consider the quotes so it can be " or ' delimiters
-            UseStrict = string.CompareOrdinal(Context.Code, 1, "use strict", 0, 10) == 0;
+            UseStrict = Context.Code == "\"use strict\"" || Context.Code == "'use strict'";
         }
 
         public bool UseStrict { get; private set; }

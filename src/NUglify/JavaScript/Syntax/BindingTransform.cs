@@ -15,6 +15,7 @@
 // limitations under the License.
 
 
+using System.Linq;
 using NUglify.Helpers;
 
 namespace NUglify.JavaScript.Syntax
@@ -29,6 +30,29 @@ namespace NUglify.JavaScript.Syntax
         public static AstNode ToBinding(AstNode node)
         {
             return ConvertToBinding(node);
+        }
+
+        // Assignment patterns can contain member targets, whereas declaration
+        // patterns cannot. Check before an optimizer attempts the conversion.
+        internal static bool CanBeBinding(AstNode node)
+        {
+            switch (node)
+            {
+                case LookupExpression _:
+                    return true;
+                case ArrayLiteral array:
+                    return array.Elements.All(CanBeBinding);
+                case ObjectLiteral obj:
+                    return obj.Properties.All(property => property is ObjectLiteralProperty field && CanBeBinding(field.Value));
+                case InitializerNode initializer:
+                    return CanBeBinding(initializer.Binding);
+                case UnaryExpression rest when rest.OperatorToken == JSToken.RestSpread:
+                    return CanBeBinding(rest.Operand);
+                case ConstantWrapper constant:
+                    return constant.Value == Missing.Value;
+                default:
+                    return false;
+            }
         }
 
         public static AstNodeList ToParameters(AstNode node)
