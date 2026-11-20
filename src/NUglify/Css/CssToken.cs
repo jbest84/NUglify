@@ -27,6 +27,10 @@ namespace NUglify.Css
         string m_text;
         public string Text { get { return m_text; } }
 
+        // Token-local spelling survives parser lookahead/replay. Custom properties
+        // defer their grammar until substitution, so numeric token kinds must survive.
+        public string RawText { get; set; }
+
         CssContext m_context;
         public CssContext Context { get { return m_context; } }
 

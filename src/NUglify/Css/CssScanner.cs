@@ -359,7 +359,7 @@ namespace NUglify.Css
                     ReportError(0, CssErrorCode.UnterminatedComment);
                 }
             }
-            else if (m_currentChar == '/')
+            else if (m_currentChar == '/' && PeekChar() != '*')
             {
                 // we found '//' -- it's a JS-style single-line comment which isn't strictly
                 // supported by CSS, but we're going to treat as a valid comment because 
@@ -377,7 +377,8 @@ namespace NUglify.Css
             }
             else
             {
-                // not a comment; just return the slash character token and we're done
+                // A slash before a CSS block-comment opener is a delimiter,
+                // not the beginning of the optional // comment extension.
                 return new CssToken(TokenType.Character, '/', m_context);
             }
 
@@ -856,15 +857,16 @@ namespace NUglify.Css
             NextChar();
 
             string w = GetW();
-            if (char.ToUpperInvariant(m_currentChar) == 'I')
+            var ident = GetIdent();
+            if (string.Equals(ident, "important", StringComparison.OrdinalIgnoreCase))
             {
-                if (ReadString("IMPORTANT"))
-                {
-                    // no matter what the case or whether or not there is space between the ! and 
-                    // the important, we're going to represent this token as having no space and all
-                    // lower-case.
-                    token = new CssToken(TokenType.ImportantSymbol, "!important", m_context);
-                }
+                token = new CssToken(TokenType.ImportantSymbol, "!important", m_context)
+                { RawText = "!" + w + ident };
+            }
+            else if (ident != null)
+            {
+                // Match a complete identifier, not the prefix of !importantx.
+                PushString(ident);
             }
             // if the token is still null but we had found some whitespace,
             // we need to push a whitespace char back onto the read-ahead
@@ -1221,6 +1223,8 @@ namespace NUglify.Css
                 ReportError(1, CssErrorCode.UnexpectedNumberCharacter, m_currentChar);
             }
 
+            if (token != null)
+                token.RawText = m_rawNumber;
             return token;
         }
 
@@ -1564,6 +1568,7 @@ namespace NUglify.Css
             follwedByWhitespace = IsSpace(m_currentChar);
             if (follwedByWhitespace)
             {
+                if (m_currentChar == '\r' && PeekChar() == '\n') NextChar();
                 NextChar();
             }
 
@@ -1576,6 +1581,26 @@ namespace NUglify.Css
             if (m_currentChar == '\\')
             {
                 char ch = PeekChar();
+                if (!this.DecodeEscapes && IsH(ch))
+                {
+                    // A hex escape consumes up to six digits and one following
+                    // whitespace character (CRLF counts as one). Keep that
+                    // terminator inside the token, distinct from real whitespace.
+                    var escape = new StringBuilder("\\");
+                    NextChar();
+                    for (var count = 0; count < 6 && IsH(m_currentChar); count++)
+                    {
+                        escape.Append(m_currentChar);
+                        NextChar();
+                    }
+                    if (IsSpace(m_currentChar))
+                    {
+                        escape.Append(' ');
+                        if (m_currentChar == '\r' && PeekChar() == '\n') NextChar();
+                        NextChar();
+                    }
+                    return escape.ToString();
+                }
                 if (this.DecodeEscapes && IsH(ch))
                 {
                     // let's actually decode the escapes so another encoding
@@ -1587,6 +1612,16 @@ namespace NUglify.Css
                     // up to six characters
                     bool followedByWhitespace;
                     int unicodeValue = GetUnicodeEncodingValue(out followedByWhitespace);
+                    // Keep escaped zero spelling for legacy hacks such as
+                    // \0screen. It still represents U+FFFD in CSS; never emit
+                    // a literal NUL or let a following hex digit join the escape.
+                    if (unicodeValue == 0)
+                        return followedByWhitespace || IsH(m_currentChar) ? @"\0 " : @"\0";
+                    // CSS escapes represent scalar values independently. Invalid
+                    // values become U+FFFD; two surrogate escapes are not a pair.
+                    if (unicodeValue > 0x10ffff
+                        || (0xd800 <= unicodeValue && unicodeValue <= 0xdfff))
+                        unicodeValue = 0xfffd;
                     if (unicodeValue == 0x5c || unicodeValue == 0x20)
                     {
                         // okay, we have an escaped backslash or space. Ideally, if we were making an interpreter,
@@ -1601,61 +1636,11 @@ namespace NUglify.Css
                     }
                     else
                     {
-                        // we shouldn't NEED to check for surrogate pairs here because
-                        // the encoding is up to six digits, which encompasses all the
-                        // available Unicode characters without having to resort to
-                        // surrogate pairs. However, some bone-head can always manually
-                        // encode two surrogate pair values in their source.
-                        if (0xd800 <= unicodeValue && unicodeValue <= 0xdbff)
-                        {
-                            // this is a high-surrogate value.
-                            int hi = unicodeValue;
-                            // the next encoding BETTER be a unicode value
-                            if (m_currentChar == '\\' && IsH(PeekChar()))
-                            {
-                                // skip the slash
-                                NextChar();
-                                // get the lo value
-                                int lo = GetUnicodeEncodingValue(out followedByWhitespace);
-                                if (0xdc00 <= lo && lo <= 0xdfff)
-                                {
-                                    // combine the hi/lo pair into one character value
-                                    unicodeValue = 0x10000
-                                      + (hi - 0xd800) * 0x400
-                                      + (lo - 0xdc00);
-                                }
-                                else
-                                {
-                                    // ERROR! not a valid unicode lower-surrogate value!
-                                    ReportError(
-                                      0,
-                                      CssErrorCode.InvalidLowSurrogate, hi, lo
-                                      );
-                                }
-                            }
-                            else
-                            {
-                                // ERROR! the high-surrogate is not followed by a low surrogate!
-                                ReportError(
-                                  0,
-                                  CssErrorCode.HighSurrogateNoLow, unicodeValue
-                                  );
-                            }
-                        }
-
-                        // get the unicode character. might be multiple characters because
-                        // the 21-bit value stired in the int might be encoded into a surrogate pair.
-                        //unicode = char.ConvertFromUtf32(unicodeValue);
-                        unicode = ConvertUtf32ToUtf16(unicodeValue);
+                        unicode = char.ConvertFromUtf32(unicodeValue);
                     }
                 }
             }
             return unicode;
-        }
-
-        static string ConvertUtf32ToUtf16(int unicodeValue)
-        {
-            return char.ConvertFromUtf32(unicodeValue);
         }
 
         string GetEscape()
@@ -1810,7 +1795,7 @@ namespace NUglify.Css
                         }
                     }
                     else if (m_currentChar == '\n'
-                        || m_currentChar == '\r')
+                        || m_currentChar == '\r' || m_currentChar == '\f')
                     {
                         // unterminated string
                         GotEndOfLine = true;
@@ -1833,17 +1818,23 @@ namespace NUglify.Css
                     }
                     else
                     {
-                        // unexpected string character
-                        ReportError(
-                          0,
-                          CssErrorCode.UnexpectedStringCharacter, m_currentChar
-                          );
+                        // Other code points, including control characters, are
+                        // ordinary string content in CSS Syntax. Always advance.
+                        m_literalBuilder.Append(m_currentChar);
+                        NextChar();
                     }
                 }
                 if (m_currentChar == delimiter)
                 {
                     m_literalBuilder.Append(delimiter);
                     NextChar(); // pass delimiter
+                }
+                else if (m_currentChar == '\0')
+                {
+                    // CSS recovers EOF inside a string as a string token, unlike
+                    // an unescaped newline (which returns a bad-string token above).
+                    ReportError(0, CssErrorCode.UnterminatedString, m_literalBuilder.ToString());
+                    m_literalBuilder.Append(delimiter);
                 }
                 str = m_literalBuilder.ToString();
             }
@@ -1971,9 +1962,41 @@ namespace NUglify.Css
             if (units != null || fraction != null)
             {
                 // get the raw number. This SHOULD match the input exactly
-                m_rawNumber = units ?? ""
+                var exponent = string.Empty;
+                if (m_currentChar == 'e' || m_currentChar == 'E')
+                {
+                    var marker = m_currentChar;
+                    var next = PeekChar();
+                    if (IsD(next))
+                    {
+                        exponent = marker.ToString();
+                        NextChar();
+                    }
+                    else if (next == '+' || next == '-')
+                    {
+                        NextChar();
+                        if (IsD(PeekChar()))
+                        {
+                            exponent = marker.ToString() + m_currentChar;
+                            NextChar();
+                        }
+                        else
+                        {
+                            PushChar(marker);
+                        }
+                    }
+                    if (exponent.Length > 0)
+                    {
+                        while (IsD(m_currentChar))
+                        {
+                            exponent += m_currentChar;
+                            NextChar();
+                        }
+                    }
+                }
+                m_rawNumber = (units ?? "")
                     + (hasDecimalPoint ? "." : "")
-                    + fraction ?? "";
+                    + (fraction ?? "") + exponent;
 
                 //if (m_collapseNumbers)
                 {
@@ -2018,11 +2041,7 @@ namespace NUglify.Css
                         num = units + '.' + fraction;
                     }
                 }
-                /*else
-                {
-                    // just use what we have
-                    num = m_rawNumber;
-                }*/
+                num += exponent;
             }
             return num;
         }

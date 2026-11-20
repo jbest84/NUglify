@@ -42,6 +42,7 @@ namespace NUglify.Css
 
         bool m_insideCalc;
         bool m_mathContainsVariable;
+        bool m_mathMissingWhitespace;
         bool m_parsingCustomProperty;
         bool parsingZeroReducibleProperty;
         // not to be confused with "non-reducible"
@@ -448,6 +449,34 @@ namespace NUglify.Css
         }
 
         #region output builders stack methods
+
+        struct OutputState
+        {
+            public int Length, LineLength, Indent;
+            public bool LastNewLine, ForceNewLine, NeedSpace;
+            public string LastText;
+        }
+
+        OutputState SaveOutputState()
+        {
+            return new OutputState
+            {
+                Length = m_builders.Peek().Length, LineLength = lineLength, Indent = indentLevel,
+                LastNewLine = lastOutputWasNewLine, ForceNewLine = m_forceNewLine,
+                NeedSpace = m_mightNeedSpace, LastText = m_lastOutputString
+            };
+        }
+
+        void RestoreOutputState(OutputState state)
+        {
+            m_builders.Peek().Length = state.Length;
+            lineLength = state.LineLength;
+            indentLevel = state.Indent;
+            lastOutputWasNewLine = state.LastNewLine;
+            m_forceNewLine = state.ForceNewLine;
+            m_mightNeedSpace = state.NeedSpace;
+            m_lastOutputString = state.LastText;
+        }
 
         /// <summary>
         /// Push a new string builder onto the builders stack
@@ -2547,6 +2576,10 @@ namespace NUglify.Css
                 return BlockItemKind.Declaration;
 
             var first = next[0];
+            // A custom-property name followed by ':' starts a declaration even
+            // when its opaque value contains braces or selector-like tokens.
+            if (CurrentTokenText.StartsWith("--", StringComparison.Ordinal) && IsCharacterToken(first, ":"))
+                return BlockItemKind.Declaration;
             if (IsCharacterToken(first, "{"))
                 return BlockItemKind.NestedRule;
 
@@ -2900,7 +2933,20 @@ namespace NUglify.Css
                     continue;
                 }
 
-                Parsed parsedDecl = ParseDeclaration();
+                Parsed parsedDecl = ParseDeclaration(out var discardedDeclaration);
+                if (discardedDeclaration)
+                {
+                    // The discarded declaration owns its separator. Do not emit an
+                    // empty declaration or let its formatting affect the next item.
+                    if (CurrentTokenType == TokenType.Character && CurrentTokenText == ";")
+                        SkipSpace();
+                    if (AtEof || (CurrentTokenType == TokenType.Character && CurrentTokenText == "}"))
+                    {
+                        if (!Settings.TermSemicolons) TrimTrailingSemicolon();
+                        break;
+                    }
+                    continue;
+                }
                 if (parsed == Parsed.Empty && parsedDecl != Parsed.Empty)
 	                parsed = parsedDecl;
 
@@ -3192,6 +3238,8 @@ namespace NUglify.Css
 
         Parsed ParseRule()
         {
+            var outputState = SaveOutputState();
+            var invalidRule = false;
             var keepRule = true;
             PushWaypoint();
 
@@ -3208,6 +3256,7 @@ namespace NUglify.Css
                     // we parsed a selector expecting this to be a rule, but then WHAM! we hit
                     // the end of the file. That isn't correct. Throw an error.
                     ReportError(0, CssErrorCode.UnexpectedEndOfFile);
+                    invalidRule = true;
                 }
 
                 while (!AtEof)
@@ -3216,6 +3265,7 @@ namespace NUglify.Css
                         || (CurrentTokenText != "," && CurrentTokenText != "{"))
                     {
                         ReportError(0, CssErrorCode.ExpectedCommaOrOpenBrace, CurrentTokenText);
+                        invalidRule = true;
                         SkipToEndOfStatement();
                         AppendCurrent();
                         SkipSpace();
@@ -3280,7 +3330,13 @@ namespace NUglify.Css
                 }
             }
 
-            PopWaypoint(keepRule);
+            if (invalidRule || parsed != Parsed.True)
+            {
+                DiscardWaypoint();
+                RestoreOutputState(outputState);
+            }
+            else
+                PopWaypoint(keepRule);
             return parsed;
         }
 
@@ -4040,6 +4096,32 @@ namespace NUglify.Css
 
         Parsed ParseDeclaration()
         {
+            return ParseDeclaration(out _);
+        }
+
+        Parsed ParseDeclaration(out bool discarded)
+        {
+            var outputState = SaveOutputState();
+            var noOutput = m_noOutput;
+            try
+            {
+                var parsed = ParseDeclarationCore(out discarded);
+                if (discarded)
+                {
+                    RestoreOutputState(outputState);
+                    m_valueReplacement = null;
+                }
+                return parsed;
+            }
+            finally
+            {
+                m_noOutput = noOutput;
+            }
+        }
+
+        Parsed ParseDeclarationCore(out bool discarded)
+        {
+            discarded = false;
             Parsed parsed = Parsed.Empty;
 
             // see if the developer is using an IE hack of prefacing property names
@@ -4084,6 +4166,7 @@ namespace NUglify.Css
                   || CurrentTokenText != ":")
                 {
                     ReportError(0, CssErrorCode.ExpectedColon, CurrentTokenText);
+                    discarded = true;
                     SkipToEndOfDeclaration();
                     return Parsed.True;
                 }
@@ -4118,16 +4201,21 @@ namespace NUglify.Css
                     else
                     {
                         // valueless variable declarations are legal
-                        if (propertyName.StartsWith("--") && (CurrentTokenText == ";" || CurrentTokenText == "}"))
+                        if (propertyName.StartsWith("--") && (AtEof ||
+                            (CurrentTokenType == TokenType.Character && (CurrentTokenText == ";" || CurrentTokenText == "}"))))
                             return Parsed.True;
 
                         m_parsingColorValue = MightContainColorNames(propertyName);
-                        parsed = ParseExpr();
+                        parsed = m_parsingCustomProperty
+                            && (CurrentTokenType == TokenType.ImportantSymbol
+                                || (CurrentTokenType == TokenType.Character && CurrentTokenText == "!"))
+                            ? ParsePrio() : ParseExpr();
                         m_parsingColorValue = false;
 
                         if (parsed != Parsed.True)
                         {
                             ReportError(0, CssErrorCode.ExpectedExpression, CurrentTokenText);
+                            discarded = true;
                             SkipToEndOfDeclaration();
                             return Parsed.True;
                         }
@@ -4150,6 +4238,27 @@ namespace NUglify.Css
         }
 
         Parsed ParsePrio()
+        {
+            var parsed = Parsed.False;
+            while (CurrentTokenType == TokenType.ImportantSymbol
+                || (CurrentTokenType == TokenType.Character && CurrentTokenText == "!"))
+            {
+                if (ParsePrioPart() != Parsed.True) break;
+                parsed = Parsed.True;
+                // A priority is terminal. Otherwise the bang/identifier belongs to
+                // the value; preserve following components without recursive chains.
+                if (!AtEof && CurrentTokenType != TokenType.ImportantSymbol
+                    && !(CurrentTokenType == TokenType.Character
+                        && (CurrentTokenText == ";" || CurrentTokenText == "}" || CurrentTokenText == "!")))
+                {
+                    if (m_skippedSpace) Append(' ');
+                    if (ParseExpr() != Parsed.True) break;
+                }
+            }
+            return parsed;
+        }
+
+        Parsed ParsePrioPart()
         {
             Parsed parsed = Parsed.False;
             if (CurrentTokenType == TokenType.ImportantSymbol)
@@ -4179,17 +4288,25 @@ namespace NUglify.Css
                 // another common IE7-and-below hack is to use an identifier OTHER than "important". All other browsers will see this
                 // as an error, but IE7 and below will keep on processing. A common thing is to put !ie at the end to mark
                 // the declaration as only for IE.
-                if (Settings.OutputDeclarationWhitespace)
-	                Append(' ');
-
                 AppendCurrent();
                 NextToken();
+                SkipIfSpace();
                 if (CurrentTokenType == TokenType.Identifier)
                 {
-                    ReportError(4, CssErrorCode.HackGeneratesInvalidCss, CurrentTokenText);
-
-                    AppendCurrent();
+                    if (!m_parsingCustomProperty && string.Equals(CurrentTokenText, "important", StringComparison.OrdinalIgnoreCase))
+                        Append("important");
+                    else
+                    {
+                        ReportError(4, CssErrorCode.HackGeneratesInvalidCss, CurrentTokenText);
+                        AppendCurrent();
+                    }
                     SkipSpace();
+                    parsed = Parsed.True;
+                }
+                else if (AtEof || (CurrentTokenType == TokenType.Character
+                    && (CurrentTokenText == ";" || CurrentTokenText == "}")))
+                {
+                    // A bare bang is a component value, not a malformed priority.
                     parsed = Parsed.True;
                 }
                 else
@@ -4368,7 +4485,8 @@ namespace NUglify.Css
                 case TokenType.Frequency:
                 case TokenType.Resolution:
                 case TokenType.Fraction:
-                    if (wasEmpty)
+                case TokenType.Speech:
+                    if (wasEmpty && (!m_parsingCustomProperty || m_skippedSpace))
                     {
                         Append(' ');
                         wasEmpty = false;
@@ -4393,10 +4511,15 @@ namespace NUglify.Css
                     break;
 
                 case TokenType.Function:
-                    if (wasEmpty)
+                    if (wasEmpty && (!m_parsingCustomProperty || m_skippedSpace))
                     {
                         Append(' ');
                         wasEmpty = false;
+                    }
+                    if (m_parsingCustomProperty)
+                    {
+                        parsed = ParseCustomPropertyComponent();
+                        break;
                     }
                     if (ParseFunction() == Parsed.False)
                     {
@@ -4406,6 +4529,21 @@ namespace NUglify.Css
                     break;
 
                 case TokenType.Character:
+                    if (m_parsingCustomProperty &&
+                        (CurrentTokenText == "{" || CurrentTokenText == "[" || CurrentTokenText == "("))
+                    {
+                        if (wasEmpty && m_skippedSpace) Append(' ');
+                        parsed = ParseCustomPropertyComponent();
+                        break;
+                    }
+                    if (m_parsingCustomProperty && CurrentTokenText == "%")
+                    {
+                        if (wasEmpty && m_skippedSpace) Append(' ');
+                        AppendCurrent();
+                        SkipSpace();
+                        parsed = Parsed.True;
+                        break;
+                    }
                     // Handle custom identifiers (e.g. used with grid-template-columns)
                     if (CurrentTokenText == "[")
                     {
@@ -4656,18 +4794,20 @@ namespace NUglify.Css
             if (CurrentTokenType == TokenType.Function)
             {
                 var functionText = GetRoot(CurrentTokenText);
-                if (m_parsingCustomProperty && IsMathFunction(functionText))
-                    return ParseCustomPropertyFunction();
                 var previousInsideCalc = m_insideCalc;
                 var previousMathContainsVariable = m_mathContainsVariable;
+                var previousMathMissingWhitespace = m_mathMissingWhitespace;
                 var isMath = IsMathFunction(functionText);
                 if (m_insideCalc && string.Equals(functionText, "var(", StringComparison.OrdinalIgnoreCase))
                     m_mathContainsVariable = true;
                 if (isMath)
                 {
-                    if (!previousInsideCalc)
-                        m_mathContainsVariable = false;
                     m_insideCalc = true;
+                    if (!previousInsideCalc)
+                    {
+                        m_mathContainsVariable = false;
+                        m_mathMissingWhitespace = false;
+                    }
                 }
                 try
                 {
@@ -4741,34 +4881,60 @@ namespace NUglify.Css
                 {
                     m_insideCalc = previousInsideCalc;
                     if (isMath && !previousInsideCalc)
+                    {
+                        // Any var() defers the whole function's value grammar,
+                        // including one encountered after a suspect operator.
+                        if (m_mathMissingWhitespace && !m_mathContainsVariable)
+                            ReportError(0, CssErrorCode.ExpectedSum, CurrentTokenText);
                         m_mathContainsVariable = previousMathContainsVariable;
+                        m_mathMissingWhitespace = previousMathMissingWhitespace;
+                    }
                 }
             }
             return parsed;
         }
 
-        Parsed ParseCustomPropertyFunction()
+        Parsed ParseCustomPropertyComponent()
         {
-            // A custom property holds tokens, not a value parsed against the
-            // named function's grammar. Keep the function's spelling and tokens.
-            var depth = 0;
+            // Functions and simple blocks in custom properties contain opaque
+            // component values, not property-specific argument grammars.
+            var closing = new Stack<string>();
             while (!AtEof)
             {
-                if (CurrentTokenType == TokenType.Function ||
-                    (CurrentTokenType == TokenType.Character && CurrentTokenText == "("))
-                    depth++;
-                else if (CurrentTokenType == TokenType.Character && CurrentTokenText == ")")
-                    depth--;
-                Append(CurrentTokenText, TokenType.None);
-                if (depth == 0)
+                if (CurrentTokenType == TokenType.Function)
+                    closing.Push(")");
+                else if (CurrentTokenType == TokenType.Character)
+                {
+                    if (CurrentTokenText == "(") closing.Push(")");
+                    else if (CurrentTokenText == "[") closing.Push("]");
+                    else if (CurrentTokenText == "{") closing.Push("}");
+                    else if (CurrentTokenText == ")" || CurrentTokenText == "]" || CurrentTokenText == "}")
+                    {
+                        if (closing.Peek() != CurrentTokenText)
+                        {
+                            ReportError(0, CssErrorCode.UnexpectedToken, CurrentTokenText);
+                            return Parsed.False;
+                        }
+                        closing.Pop();
+                    }
+                }
+                else if (CurrentTokenType == TokenType.Error)
+                {
+                    return Parsed.False;
+                }
+                AppendCurrent();
+                if (closing.Count == 0)
                 {
                     SkipSpace();
                     return Parsed.True;
                 }
-                NextRawToken();
+                NextToken();
             }
-            ReportError(0, CssErrorCode.ExpectedClosingParenthesis, CurrentTokenText);
-            return Parsed.False;
+            // CSS closes open component blocks at EOF. Report the truncation,
+            // then serialize the recovered tokens with their closing delimiters.
+            ReportError(0, CssErrorCode.UnexpectedEndOfFile);
+            while (closing.Count > 0) Append(closing.Pop());
+            return Parsed.True;
         }
 
         static bool IsMathFunction(string functionText)
@@ -5413,15 +5579,13 @@ namespace NUglify.Css
                     if (CurrentTokenType != TokenType.Character || (CurrentTokenText != "+" && CurrentTokenText != "-"))
                         break;
 
-                    // plus and minus operators need space around them.
-                    Append(' ');
+                    var spaceBefore = m_skippedSpace;
+                    if (spaceBefore) Append(' ');
                     AppendCurrent();
-
-                    // plus and minus operators both need spaces after them.
-                    // the minus needs to not be an identifier.
-                    Append(' ');
-
                     SkipSpace();
+                    var spaceAfter = m_skippedSpace;
+                    if (spaceAfter) Append(' ');
+                    if (!spaceBefore || !spaceAfter) m_mathMissingWhitespace = true;
 
                     // grab the next product -- and there better be one
                     parsed = ParseProduct();
@@ -5634,6 +5798,8 @@ namespace NUglify.Css
 
         TokenType NextToken()
         {
+            var previousToken = m_currentToken;
+            var removedComment = false;
             m_currentToken = PullRawToken(!m_insideCalc && parsingZeroReducibleProperty);
             if (EchoWriter != null)
             {
@@ -5648,7 +5814,9 @@ namespace NUglify.Css
                 if (AppendCurrent())
                 {
                     NewLine();
+                    removedComment = false;
                 }
+                else removedComment = true;
                 m_currentToken = PullRawToken(!m_insideCalc && parsingZeroReducibleProperty);
                 if (EchoWriter != null)
                 {
@@ -5657,7 +5825,35 @@ namespace NUglify.Css
 
                 m_encounteredNewLine = m_encounteredNewLine || m_scanner.GotEndOfLine;
             }
+            // A separator comment preserves adjacency without inventing a CSS
+            // whitespace token (notably around calc() binary operators).
+            if (removedComment && NeedsTokenSeparator(previousToken, m_currentToken)
+                // ParseSum already separates adjacent variable-dependent terms.
+                && !(m_insideCalc && IsCurrentVarFunction()))
+                Append("/**/");
             return CurrentTokenType;
+        }
+
+        static bool NeedsTokenSeparator(CssToken previous, CssToken next)
+        {
+            if (previous == null || next == null || previous.Text.Length == 0 || next.Text.Length == 0
+                || previous.TokenType == TokenType.Space || next.TokenType == TokenType.Space)
+                return false;
+            var last = previous.Text[previous.Text.Length - 1];
+            var first = next.Text[0];
+            var startsName = CssScanner.IsNmChar(first) || first == '\\';
+            var endsName = previous.TokenType == TokenType.Identifier || previous.TokenType == TokenType.Hash
+                || previous.TokenType == TokenType.AtKeyword || previous.TokenType == TokenType.Dimension
+                || previous.TokenType == TokenType.AbsoluteLength || previous.TokenType == TokenType.RelativeLength
+                || previous.TokenType == TokenType.Angle || previous.TokenType == TokenType.Time
+                || previous.TokenType == TokenType.Frequency || previous.TokenType == TokenType.Resolution
+                || previous.TokenType == TokenType.Fraction || previous.TokenType == TokenType.Speech;
+            if (endsName && (startsName || first == '(')) return true;
+            if (previous.TokenType == TokenType.Number && (startsName || first == '%' || first == '.')) return true;
+            if (previous.TokenType != TokenType.Character) return false;
+            return (last == '#' && startsName) || ((last == '@' || last == '-') && startsName)
+                || ((last == '+' || last == '.') && (char.IsDigit(first) || first == '.'))
+                || (last == '/' && first == '*');
         }
 
         // just skip to the next token; don't skip over comments
@@ -6003,7 +6199,7 @@ namespace NUglify.Css
                     return token;
             }
 
-            return new CssToken(TokenType.Number, "0", token.Context);
+            return new CssToken(TokenType.Number, "0", token.Context) { RawText = token.RawText };
         }
 
         #endregion
@@ -6302,7 +6498,7 @@ namespace NUglify.Css
         bool AppendCurrent()
         {
             return Append(
-                CurrentTokenText, 
+                m_parsingCustomProperty && m_currentToken?.RawText != null ? m_currentToken.RawText : CurrentTokenText,
                 CurrentTokenType);
         }
 
@@ -6412,6 +6608,20 @@ namespace NUglify.Css
                             while ('0' <= text[firstIndex] && text[firstIndex] <= '9')
                             {
                                 ++firstIndex;
+                            }
+
+                            // A signed exponent is part of the number, not the
+                            // dimension identifier. Escaping its '+' changes the token.
+                            if (text[firstIndex] == 'e' || text[firstIndex] == 'E')
+                            {
+                                var exponent = firstIndex + 1;
+                                if (exponent < text.Length && (text[exponent] == '+' || text[exponent] == '-'))
+                                    ++exponent;
+                                var digits = exponent;
+                                while (exponent < text.Length && text[exponent] >= '0' && text[exponent] <= '9')
+                                    ++exponent;
+                                if (exponent > digits)
+                                    firstIndex = exponent;
                             }
 
                             // since we start at the first character AFTER firstIndex, subtract

@@ -60,12 +60,8 @@ namespace NUglify.Tests.Css
             }
         }
 
-        static void RunProperty(Property property)
-        {
-            // FsCheck's Quick configuration runs a minimum of 100 iterations by default
-            // and throws (failing the NUnit test) on the first counterexample it finds.
-            property.QuickCheckThrowOnFailure();
-        }
+        static void RunProperty(Property property, int seed)
+            => GeneratedChecks.Run(property, seed, startSize: 1, endSize: 100);
 
         // Selector fragments that never contain '&', a quote, or a comment opener,
         // so any '&' in a generated string is guaranteed to be a bare nesting selector.
@@ -81,8 +77,8 @@ namespace NUglify.Tests.Css
         // NestingSelector tokens, one per '&', none merged.
         // Validates: Requirements 1.1, 1.2, 1.3
         // ------------------------------------------------------------------
-        [Test]
-        public void Property1_NestingSelectorTokenCount()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property1_NestingSelectorTokenCount(int seed)
         {
             // Each item is either a bare '&' or a safe fragment containing no '&'.
             var itemGen = Gen.Elements(SafeSelectorFragments.Concat(new[] { "&" }).ToArray());
@@ -98,7 +94,7 @@ namespace NUglify.Tests.Css
                 return expected == actual;
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ------------------------------------------------------------------
@@ -107,8 +103,8 @@ namespace NUglify.Tests.Css
         // comment, the scanner produces zero NestingSelector tokens.
         // Validates: Requirement 1.4
         // ------------------------------------------------------------------
-        [Test]
-        public void Property2_AmpersandInLiteralIsNeverNestingToken()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property2_AmpersandInLiteralIsNeverNestingToken(int seed)
         {
             // Contents that contain '&' but no delimiter that would terminate the
             // enclosing literal early (no '*/', no matching quote, no backslash).
@@ -129,7 +125,7 @@ namespace NUglify.Tests.Css
                 return CountTokensOfType(css, "NestingSelector") == 0;
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ---- Model + generator for nested-selector emission (Property 5) ----
@@ -230,8 +226,8 @@ namespace NUglify.Tests.Css
         // with the same combinators and with zero whitespace where the source had none.
         // Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5
         // ------------------------------------------------------------------
-        [Test]
-        public void Property5_NestingSelectorEmittedVerbatimInPosition()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property5_NestingSelectorEmittedVerbatimInPosition(int seed)
         {
             var property = Prop.ForAll(Arb.From(NestedSelectorGen()), (List<Seg> segs) =>
             {
@@ -248,7 +244,7 @@ namespace NUglify.Tests.Css
                     .Label($"source=<{source}> code=<{result.Code}> expected=<{expected}> hasErrors={result.HasErrors}");
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // Parent selectors used to wrap a nested relative selector.
@@ -274,8 +270,8 @@ namespace NUglify.Tests.Css
         // selector unchanged and never inserts an explicit '&'.
         // Validates: Requirements 4.1, 4.2, 4.3, 4.4
         // ------------------------------------------------------------------
-        [Test]
-        public void Property6_RelativeNestedSelectorsKeepLeadingForm()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property6_RelativeNestedSelectorsKeepLeadingForm(int seed)
         {
             // Precompute every combination of parent / leading form / compound / declaration.
             // (plain System.Linq over arrays, then a single Gen.Elements over the array.)
@@ -314,7 +310,7 @@ namespace NUglify.Tests.Css
                 return !result.HasErrors && noExplicitAmpersand && leadingFormPreserved;
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ---- Model + generator for nested selector lists (Property 7) ----
@@ -386,8 +382,8 @@ namespace NUglify.Tests.Css
         // comma with no surrounding whitespace in minified output.
         // Validates: Requirements 5.1, 5.2, 5.4, 8.2
         // ------------------------------------------------------------------
-        [Test]
-        public void Property7_NestedSelectorListMembership()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property7_NestedSelectorListMembership(int seed)
         {
             var property = Prop.ForAll(Arb.From(NestedSelectorListGen()), (List<ListSel> items) =>
             {
@@ -422,7 +418,7 @@ namespace NUglify.Tests.Css
                     .Label($"source=<{source}> code=<{result.Code}> expected=<{expected}> hasErrors={result.HasErrors}");
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // Invalid nested selector lists: each contains an empty selector position
@@ -458,8 +454,8 @@ namespace NUglify.Tests.Css
         // error and emits none of the list's selectors rather than partial output.
         // Validates: Requirements 5.5, 5.6
         // ------------------------------------------------------------------
-        [Test]
-        public void Property8_InvalidNestedSelectorListFailsAtomically()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property8_InvalidNestedSelectorListFailsAtomically(int seed)
         {
             var gen = Gen.Elements(InvalidNestedSelectorLists);
 
@@ -481,7 +477,7 @@ namespace NUglify.Tests.Css
                     .Label($"source=<{source}> code=<{code}> hasErrors={result.HasErrors}");
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ---- Model + generator for source order preservation (Property 3) ----
@@ -575,8 +571,8 @@ namespace NUglify.Tests.Css
         // output matches their order in the source.
         // Validates: Requirements 2.2, 2.3, 8.6
         // ------------------------------------------------------------------
-        [Test]
-        public void Property3_SourceOrderPreservation()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property3_SourceOrderPreservation(int seed)
         {
             var property = Prop.ForAll(Arb.From(BlockItemsGen()), (List<BodyItem> items) =>
             {
@@ -602,7 +598,7 @@ namespace NUglify.Tests.Css
                            $"minErrors={minified.HasErrors} prettyErrors={pretty.HasErrors}");
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ---- Generator for whole nested stylesheets (Property 4) ----
@@ -656,8 +652,8 @@ namespace NUglify.Tests.Css
         // association and depth).
         // Validates: Requirements 2.1, 6.4, 7.4
         // ------------------------------------------------------------------
-        [Test]
-        public void Property4_NestingStructureRoundTrip()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property4_NestingStructureRoundTrip(int seed)
         {
             var property = Prop.ForAll(Arb.From(NestedStylesheetGen()), (string source) =>
             {
@@ -676,7 +672,7 @@ namespace NUglify.Tests.Css
                            $"firstErrors={first.HasErrors} secondErrors={second.HasErrors}");
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ---- Helpers for arbitrary depth preservation (Property 9) ----
@@ -751,8 +747,8 @@ namespace NUglify.Tests.Css
         // innermost declaration sits at the deepest (D-th) level.
         // Validates: Requirements 6.2, 6.3, 6.4
         // ------------------------------------------------------------------
-        [Test]
-        public void Property9_ArbitraryDepthIsPreserved()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property9_ArbitraryDepthIsPreserved(int seed)
         {
             // Depths span 1..128 so the >= 64 case (arbitrary, non-fixed depth) is exercised
             // on roughly half of all iterations.
@@ -781,7 +777,7 @@ namespace NUglify.Tests.Css
                            $"declDepth={BraceDepthAtToken(code, "color")}");
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ---- Model + generator for minified whitespace invariants (Property 11) ----
@@ -951,8 +947,8 @@ namespace NUglify.Tests.Css
         // has no separator inserted.
         // Validates: Requirements 8.1, 8.2, 8.3, 8.6
         // ------------------------------------------------------------------
-        [Test]
-        public void Property11_MinifiedOutputWhitespaceInvariants()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property11_MinifiedOutputWhitespaceInvariants(int seed)
         {
             var property = Prop.ForAll(Arb.From(WsParentRuleGen()), (WsParentRule rule) =>
             {
@@ -967,7 +963,7 @@ namespace NUglify.Tests.Css
                     .Label($"source=<{source}> code=<{result.Code}> expected=<{expected}> hasErrors={result.HasErrors}");
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ==================================================================
@@ -1452,8 +1448,8 @@ namespace NUglify.Tests.Css
         // removal is itself omitted.
         // Validates: Requirements 8.4, 8.5
         // ------------------------------------------------------------------
-        [Test]
-        public void Property12_EmptyBlockRemoval()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property12_EmptyBlockRemoval(int seed)
         {
             var property = Prop.ForAll(Arb.From(EbForestGen()), (List<EbShape> shapes) =>
             {
@@ -1489,7 +1485,7 @@ namespace NUglify.Tests.Css
                            $"hasErrors={result.HasErrors} noEmptyBlocks={noEmptyBlocks}");
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ---- Model + generator for at-rule containment (Property 10) ----
@@ -1536,8 +1532,8 @@ namespace NUglify.Tests.Css
         // minified and pretty output.
         // Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5
         // ------------------------------------------------------------------
-        [Test]
-        public void Property10_AtRuleContainmentIsPreserved()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property10_AtRuleContainmentIsPreserved(int seed)
         {
             var property = Prop.ForAll(Arb.From(AtRuleContainmentGen()), (string source) =>
             {
@@ -1566,7 +1562,7 @@ namespace NUglify.Tests.Css
                            $"minErrors={minified.HasErrors} prettyErrors={pretty.HasErrors}");
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ==================================================================
@@ -2465,8 +2461,8 @@ namespace NUglify.Tests.Css
         // error set (codes + source positions) is produced deterministically across modes.
         // Validates: Requirements 9.1, 9.2, 9.3
         // ------------------------------------------------------------------
-        [Test]
-        public void Property13_NonNestedOutputIsUnchanged()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property13_NonNestedOutputIsUnchanged(int seed)
         {
             var prettySettings = new CssSettings { OutputMode = OutputMode.MultipleLines };
 
@@ -2516,7 +2512,7 @@ namespace NUglify.Tests.Css
                     $"expectedMin=<{c.ExpectedMinified}>");
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ------------------------------------------------------------------
@@ -2601,8 +2597,8 @@ namespace NUglify.Tests.Css
         // probe's minified text must be identical to minifying the probe on its own -- what
         // precedes a value in the buffer must never perturb that value's replayed output.
         // ------------------------------------------------------------------
-        [Test]
-        public void Property14_LookaheadReplayIsTransparent()
+        [TestCase(104729), TestCase(130363), Category("CssConformance"), Category("CssGenerated")]
+        public void Property14_LookaheadReplayIsTransparent(int seed)
         {
             var gen = from probe in Gen.Elements(ReplayProbeDeclarations)
                       from prefix in Gen.ListOf(Gen.Elements(ReplaySiblingItems))
@@ -2624,7 +2620,7 @@ namespace NUglify.Tests.Css
                 return ok.Label($"source=<{source}> code=<{code}> expectedProbe=<{expectedProbe}> errors={result.HasErrors}");
             });
 
-            RunProperty(property);
+            RunProperty(property, seed);
         }
 
         // ------------------------------------------------------------------
