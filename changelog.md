@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.24.1
+- Fixed JavaScript syntax validation, strict-mode handling, template escapes, scope resolution, and output preservation.
+- Fixed CSS error recovery, numeric and Unicode escapes, custom-property parsing, and comment/whitespace token boundaries.
+- Added conformance and reproducible property-based regression tests for both parsers.
+
 ## v1.24.0
 - Add a .NET 10 target with Native AOT and trimming support (#485).
 - Add support for `for...of` assignment targets using destructuring patterns or member expressions, and class static initialization blocks (#486).
